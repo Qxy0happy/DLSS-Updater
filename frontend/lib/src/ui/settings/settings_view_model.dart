@@ -29,6 +29,8 @@ class SettingsViewModel extends ChangeNotifier {
 
   String? get steamRoot => _settings.steamRoot;
 
+  List<String> get customFolders => List.unmodifiable(_settings.customFolders);
+
   String? get error => _error;
 
   bool get changingSource => _changingSource;
@@ -41,6 +43,46 @@ class SettingsViewModel extends ChangeNotifier {
     await store.save(updated);
     _settings = updated;
     notifyListeners();
+  }
+
+  /// Removes the Steam root while keeping every custom folder.
+  Future<void> clearSteamRoot() async {
+    final updated = _settings.copyWith(clearSteamRoot: true);
+    await store.save(updated);
+    _settings = updated;
+    notifyListeners();
+  }
+
+  /// Persists the custom game folder list.
+  Future<void> setCustomFolders(List<String> customFolders) async {
+    final updated = _settings.copyWith(
+      customFolders: List<String>.unmodifiable(customFolders),
+    );
+    await store.save(updated);
+    _settings = updated;
+    notifyListeners();
+  }
+
+  /// Opens the picker for one game directory and appends it.
+  ///
+  /// Returns the selected path, or null when the user closed the picker or
+  /// chose a folder that is already in the list.
+  Future<String?> chooseCustomFolder() async {
+    final selected = await picker.pickDirectory();
+    if (selected == null) return null;
+    final path = selected.trim();
+    if (path.isEmpty || _settings.customFolders.contains(path)) return null;
+    await setCustomFolders([..._settings.customFolders, path]);
+    return path;
+  }
+
+  /// Removes one custom game folder and persists the remaining list.
+  Future<void> removeCustomFolder(String path) async {
+    if (!_settings.customFolders.contains(path)) return;
+    await setCustomFolders([
+      for (final existing in _settings.customFolders)
+        if (existing != path) existing,
+    ]);
   }
 
   /// Opens the native picker for the Steam root and persists the choice.

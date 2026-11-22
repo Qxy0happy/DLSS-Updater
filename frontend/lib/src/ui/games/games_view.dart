@@ -22,21 +22,28 @@ class GamesView extends StatelessWidget {
 
   static const String emptyTitle = 'No games scanned yet';
   static const String emptyMessage =
-      'Choose your Steam library folder and run a scan. Games that contain '
-      'updatable DLLs will appear here.';
+      'Choose your Steam folder and/or add game folders, then run a scan. '
+      'Games that contain updatable DLLs will appear here.';
   static const String noResultsTitle = 'No games found';
   static const String noResultsMessage =
       'The scan finished without finding games with known technology DLLs. '
-      'Check that the Steam folder contains installed games and scan again.';
+      'Check the selected folders and any warnings, then scan again.';
 
   static const Key chooseRootKey = Key('games-choose-root');
+  static const Key clearRootKey = Key('games-clear-root');
+  static const Key addCustomFolderKey = Key('games-add-custom-folder');
   static const Key scanKey = Key('games-scan');
   static const Key cancelKey = Key('games-cancel');
   static const Key errorKey = Key('games-error');
   static const Key retryKey = Key('games-retry');
   static const Key progressKey = Key('games-progress');
   static const Key summaryKey = Key('games-summary');
+  static const Key warningsKey = Key('games-warnings');
   static const Key listKey = Key('games-list');
+
+  /// Key of the remove button for one custom game folder.
+  static Key removeCustomFolderKey(String path) =>
+      Key('games-remove-custom:$path');
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +100,8 @@ class _GamesBodyState extends State<_GamesBody> {
           _ScanProgressPanel(viewModel: viewModel),
         if (viewModel.summary != null)
           _ScanSummaryPanel(summary: viewModel.summary!),
+        if (viewModel.warnings.isNotEmpty)
+          _ScanWarningsPanel(warnings: viewModel.warnings),
         if (viewModel.updateFailure != null)
           _UpdateErrorPanel(
             failure: viewModel.updateFailure!,
@@ -502,70 +511,155 @@ class _ScanToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final root = viewModel.steamRoot;
+    final folders = viewModel.customFolders;
     final busy = viewModel.scanning;
     final updating = viewModel.updating;
+    final locked = busy || updating;
+    final summary = <String>[
+      ?root,
+      if (folders.isNotEmpty)
+        folders.length == 1
+            ? '1 custom folder'
+            : '${folders.length} custom folders',
+    ].join(' · ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(Icons.folder_open, color: theme.colorScheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Steam folder', style: theme.textTheme.labelMedium),
-                    const SizedBox(height: 2),
-                    if (root == null)
-                      Text(
-                        'Not selected',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+              Row(
+                children: [
+                  Icon(Icons.folder_open, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Scan sources',
+                          style: theme.textTheme.labelMedium,
                         ),
-                      )
-                    else
-                      SelectableText(
-                        root,
-                        style: theme.textTheme.bodyMedium,
-                        maxLines: 1,
+                        const SizedBox(height: 2),
+                        Text(
+                          summary.isEmpty ? 'No sources selected' : summary,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: summary.isEmpty
+                                ? theme.colorScheme.onSurfaceVariant
+                                : null,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    key: GamesView.chooseRootKey,
+                    onPressed: locked ? null : viewModel.chooseSteamRoot,
+                    icon: const Icon(Icons.folder_outlined, size: 18),
+                    label: const Text('Steam'),
+                  ),
+                  if (root != null)
+                    IconButton(
+                      key: GamesView.clearRootKey,
+                      tooltip: 'Clear Steam folder',
+                      onPressed: locked ? null : viewModel.clearSteamRoot,
+                      icon: const Icon(Icons.close, size: 18),
+                    ),
+                  TextButton.icon(
+                    key: GamesView.addCustomFolderKey,
+                    onPressed: locked ? null : viewModel.addCustomFolder,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add folder'),
+                  ),
+                  const SizedBox(width: 4),
+                  if (busy)
+                    FilledButton.tonalIcon(
+                      key: GamesView.cancelKey,
+                      onPressed: viewModel.cancelling
+                          ? null
+                          : viewModel.cancelScan,
+                      icon: viewModel.cancelling
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.stop),
+                      label: Text(
+                        viewModel.cancelling ? 'Cancelling…' : 'Cancel',
                       ),
-                  ],
-                ),
+                    )
+                  else
+                    FilledButton.icon(
+                      key: GamesView.scanKey,
+                      onPressed: !viewModel.sourcesConfigured || updating
+                          ? null
+                          : viewModel.startScan,
+                      icon: const Icon(Icons.search),
+                      label: const Text('Scan'),
+                    ),
+                ],
               ),
-              const SizedBox(width: 12),
-              TextButton.icon(
-                key: GamesView.chooseRootKey,
-                onPressed: busy || updating ? null : viewModel.chooseSteamRoot,
-                icon: const Icon(Icons.folder_outlined),
-                label: const Text('Choose folder'),
-              ),
-              const SizedBox(width: 8),
-              if (busy)
-                FilledButton.tonalIcon(
-                  key: GamesView.cancelKey,
-                  onPressed: viewModel.cancelling ? null : viewModel.cancelScan,
-                  icon: viewModel.cancelling
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.stop),
-                  label: Text(viewModel.cancelling ? 'Cancelling…' : 'Cancel'),
-                )
-              else
-                FilledButton.icon(
-                  key: GamesView.scanKey,
-                  onPressed: root == null || updating
-                      ? null
-                      : viewModel.startScan,
-                  icon: const Icon(Icons.search),
-                  label: const Text('Scan'),
+              if (folders.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 36,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: folders.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final path = folders[index];
+                      return Container(
+                        padding: const EdgeInsets.only(left: 12, right: 4),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.gamepad_outlined, size: 16),
+                            const SizedBox(width: 6),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 260),
+                              child: Tooltip(
+                                message: path,
+                                child: Text(
+                                  path,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              key: GamesView.removeCustomFolderKey(path),
+                              tooltip: 'Remove folder',
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              onPressed: locked
+                                  ? null
+                                  : () => viewModel.removeCustomFolder(path),
+                              icon: const Icon(Icons.close, size: 16),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
+              ],
             ],
           ),
         ),
@@ -646,15 +740,14 @@ class _ScanProgressPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final progress = viewModel.progress;
-    final libraryLabel = progress != null && progress.libraryCount > 0
-        ? 'Library ${progress.libraryIndex} of ${progress.libraryCount}'
+    final sourceLabel = progress != null && progress.sourceCount > 0
+        ? 'Source ${progress.sourceIndex} of ${progress.sourceCount}'
         : 'Preparing scan…';
     final currentGame = progress?.currentGame ?? '';
     final counters = progress == null
-        ? 'Looking for Steam libraries…'
+        ? 'Reading the selected sources…'
         : '${_gamesLabel(progress.gamesFound)} · '
               '${_dllsLabel(progress.dllsFound)} found';
-    final warnings = viewModel.warnings.length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -669,11 +762,11 @@ class _ScanProgressPanel extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Scanning Steam libraries',
+                      'Scanning sources',
                       style: theme.textTheme.titleSmall,
                     ),
                   ),
-                  Text(libraryLabel, style: theme.textTheme.labelMedium),
+                  Text(sourceLabel, style: theme.textTheme.labelMedium),
                 ],
               ),
               const SizedBox(height: 12),
@@ -681,7 +774,7 @@ class _ScanProgressPanel extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 currentGame.isEmpty
-                    ? 'Reading Steam libraries…'
+                    ? 'Reading the selected sources…'
                     : 'Checking $currentGame',
                 style: theme.textTheme.bodyMedium,
                 maxLines: 1,
@@ -694,17 +787,46 @@ class _ScanProgressPanel extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              if (warnings > 0)
-                Text(
-                  warnings == 1
-                      ? '1 folder could not be read.'
-                      : '$warnings folders could not be read.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScanWarningsPanel extends StatelessWidget {
+  const _ScanWarningsPanel({required this.warnings});
+
+  final List<ScanWarningInfo> warnings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Card(
+        key: GamesView.warningsKey,
+        child: ExpansionTile(
+          leading: Icon(
+            Icons.warning_amber_outlined,
+            color: theme.colorScheme.tertiary,
+          ),
+          title: Text(
+            warnings.length == 1
+                ? '1 scan warning'
+                : '${warnings.length} scan warnings',
+          ),
+          subtitle: const Text('Review these paths; the scan continued.'),
+          children: [
+            for (final warning in warnings)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.folder_off_outlined, size: 18),
+                title: SelectableText(warning.path),
+                subtitle: Text(warning.message),
+              ),
+          ],
         ),
       ),
     );

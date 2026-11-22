@@ -196,10 +196,12 @@ func enumerateGames(ctx context.Context, lib library) ([]game, []warning) {
 
 // findDLLs walks one game directory recursively. Symbolic links are never
 // followed, non-game directories are skipped, and each physical file is
-// reported at most once per scan. A subdirectory that cannot be read becomes a
-// warning; a root that cannot be read is returned as an error so the caller can
-// skip a game it cannot inspect.
-func findDLLs(ctx context.Context, gameDir string, seen realPathSet) ([]dllFile, []warning, error) {
+// reported at most once per scan. protected lists real paths of other game
+// roots: the walk never descends into one, so two planned games cannot both
+// claim the same DLL. A subdirectory that cannot be read becomes a warning; a
+// root that cannot be read is returned as an error so the caller can skip a
+// game it cannot inspect.
+func findDLLs(ctx context.Context, gameDir string, seen, protected realPathSet) ([]dllFile, []warning, error) {
 	var found []dllFile
 	var warnings []warning
 
@@ -228,7 +230,11 @@ func findDLLs(ctx context.Context, gameDir string, seen realPathSet) ([]dllFile,
 				if skipDirectory(name) {
 					continue
 				}
-				if err := walk(filepath.Join(dir, name), false); err != nil {
+				child := filepath.Join(dir, name)
+				if protected.has(child) {
+					continue
+				}
+				if err := walk(child, false); err != nil {
 					return err
 				}
 				continue

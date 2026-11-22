@@ -331,8 +331,9 @@ func TestScanMultipleLibraries(t *testing.T) {
 		if progress == nil {
 			continue
 		}
-		if progress.GetLibraryCount() != 2 {
-			t.Errorf("library_count = %d, want 2", progress.GetLibraryCount())
+		// Two libraries are still one Steam source; progress counts origins.
+		if progress.GetLibraryCount() != 1 {
+			t.Errorf("library_count = %d, want 1 source", progress.GetLibraryCount())
 		}
 		libraryPaths[progress.GetLibraryPath()] = true
 	}
@@ -401,8 +402,8 @@ func TestScanCollapsesSymlinkedAndDuplicateLibraries(t *testing.T) {
 	}
 	for _, event := range events {
 		progress := event.GetLibraryProgress()
-		if progress != nil && progress.GetLibraryCount() != 2 {
-			t.Errorf("library_count = %d, want 2 after deduplication", progress.GetLibraryCount())
+		if progress != nil && progress.GetLibraryCount() != 1 {
+			t.Errorf("library_count = %d, want 1 source after deduplication", progress.GetLibraryCount())
 		}
 	}
 	games := listGames(t, libraryClient)
@@ -806,4 +807,357 @@ func sameProgress(a, b *dlssv1.ScanLibraryProgress) bool {
 		a.GetCurrentGame() == b.GetCurrentGame() &&
 		a.GetGamesFound() == b.GetGamesFound() &&
 		a.GetDllsFound() == b.GetDllsFound()
+}
+
+// runScanSources starts a scan from typed sources, the shape the frontend
+// sends once more than one origin is configured.
+func runScanSources(t *testing.T, client dlssv1.ScanClient, sources ...*dlssv1.ScanSource) []*dlssv1.ScanEvent {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	stream, err := client.StartScan(ctx, &dlssv1.StartScanRequest{Sources: sources})
+	if err != nil {
+		t.Fatalf("StartScan(sources): %v", err)
+	}
+	return collectScan(t, stream)
+}
+
+func steamSource(root string) *dlssv1.ScanSource {
+	return &dlssv1.ScanSource{Source: &dlssv1.ScanSource_Steam{
+		Steam: &dlssv1.SteamSource{Root: root},
+	}}
+}
+
+func customSource(path string) *dlssv1.ScanSource {
+	return &dlssv1.ScanSource{Source: &dlssv1.ScanSource_CustomFolder{
+		CustomFolder: &dlssv1.CustomFolderSource{Path: path},
+	}}
+}
+
+// zzzDLLNames mirrors the 16 known files the old application cached for the
+// ZZZ custom folder.
+var zzzDLLNames = []string{
+	"nvngx_dlss.dll", "nvngx_dlssg.dll", "nvngx_dlssd.dll", "nvngx_dlssnr.dll",
+	"libxess.dll", "libxess_dx11.dll", "libxess_fg.dll", "libxell.dll",
+	"sl.common.dll", "sl.dlss.dll", "sl.dlss_g.dll", "sl.interposer.dll",
+	"sl.pcl.dll", "sl.reflex.dll", "sl.directsr.dll", "sl.dlss_d.dll",
+}
+
+func writeCustomGame(t *testing.T, names []string) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "ZZZ")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("create custom game dir: %v", err)
+	}
+	for i, name := range names {
+		sub := "bin/x64"
+		if i%2 == 0 {
+			sub = ""
+		}
+		testfixtures.WritePE(t, filepath.Join(dir, sub), name,
+			testfixtures.PEOptions{Version: testfixtures.VersionInstalled})
+	}
+	return dir
+}
+
+func scanWarnings(events []*dlssv1.ScanEvent) map[string]string {
+	warnings := map[string]string{}
+	for _, event := range events {
+		if w := event.GetWarning(); w != nil {
+			warnings[w.GetPath()] = w.GetMessage()
+		}
+	}
+	return warnings
+}
+
+func TestScanCustomFolderFindsAllKnownDLLsAndRescansWithoutDuplicates(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	gameDir := writeCustomGame(t, zzzDLLNames)
+
+	for run := 1; run <= 2; run++ {
+		events := runScanSources(t, scanClient, customSource(gameDir))
+		finished := finishSummary(t, events)
+		if got, want := finished.GetGameCount(), int32(1); got != want {
+			t.Fatalf("run %d: finished.game_count = %d, want %d", run, got, want)
+		}
+		if got, want := finished.GetDllCount(), int32(len(zzzDLLNames)); got != want {
+			t.Fatalf("run %d: finished.dll_count = %d, want %d", run, got, want)
+		}
+	}
+
+	games := listGames(t, libraryClient)
+	if len(games) != 1 {
+		t.Fatalf("ListGames returned %d games after rescans, want 1", len(games))
+	}
+	game := games[0]
+	if game.GetAppId() != 0 {
+		t.Errorf("custom game app_id = %d, want 0", game.GetAppId())
+	}
+	if game.GetName() != "ZZZ" {
+		t.Errorf("custom game name = %q, want %q", game.GetName(), "ZZZ")
+	}
+	if game.GetInstallPath() != gameDir || game.GetLibraryPath() != gameDir {
+		t.Errorf("paths = install %q library %q, want both %q",
+			game.GetInstallPath(), game.GetLibraryPath(), gameDir)
+	}
+	if len(game.GetDlls()) != len(zzzDLLNames) {
+		t.Errorf("persisted DLL count = %d, want %d", len(game.GetDlls()), len(zzzDLLNames))
+	}
+	seen := map[string]bool{}
+	for _, dll := range game.GetDlls() {
+		seen[strings.ToLower(dll.GetFilename())] = true
+	}
+	for _, name := range zzzDLLNames {
+		if !seen[name] {
+			t.Errorf("DLL %s missing from custom game", name)
+		}
+	}
+}
+
+func TestScanMixedSourcesWarnAboutUnreadableAndKeepSteam(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	lib := testfixtures.NewSteamLibrary(t)
+	lib.AddGame(testfixtures.GameSpec{
+		AppID: 9100, Name: "Steam Game", InstallDir: "Steam Game",
+		DLLs: []testfixtures.DLLSpec{{Path: "nvngx_dlss.dll", Version: testfixtures.VersionInstalled}},
+	})
+	customDir := writeCustomGame(t, []string{"libxess.dll"})
+	missing := filepath.Join(t.TempDir(), "gone")
+
+	events := runScanSources(t, scanClient, steamSource(lib.Root()), customSource(customDir), customSource(missing))
+	finished := finishSummary(t, events)
+	if finished.GetGameCount() != 2 || finished.GetDllCount() != 2 {
+		t.Errorf("finished = %d games / %d DLLs, want 2 / 2", finished.GetGameCount(), finished.GetDllCount())
+	}
+	warnings := scanWarnings(events)
+	if _, ok := warnings[missing]; !ok {
+		t.Errorf("no warning for unreadable custom folder %q (warnings: %v)", missing, warnings)
+	}
+	for _, event := range events {
+		if p := event.GetLibraryProgress(); p != nil && p.GetLibraryCount() != 2 {
+			t.Errorf("library_count = %d, want 2 readable sources", p.GetLibraryCount())
+		}
+	}
+
+	games := listGames(t, libraryClient)
+	names := map[string]bool{}
+	for _, game := range games {
+		names[game.GetName()] = true
+	}
+	if !names["Steam Game"] || !names["ZZZ"] {
+		t.Errorf("game names = %v, want Steam Game and ZZZ", names)
+	}
+}
+
+func TestScanAllUnreadableSourcesFails(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, _, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	sources := []*dlssv1.ScanSource{
+		steamSource(filepath.Join(t.TempDir(), "missing-steam")),
+		customSource(filepath.Join(t.TempDir(), "missing-custom")),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stream, err := scanClient.StartScan(ctx, &dlssv1.StartScanRequest{Sources: sources})
+	if err == nil {
+		var event *dlssv1.ScanEvent
+		event, err = stream.Recv()
+		if err == nil {
+			if failed := event.GetFailed(); failed != nil {
+				if failed.GetReason() != string(contract.ReasonScanRootInvalid) {
+					t.Errorf("failed.reason = %q, want SCAN_ROOT_INVALID", failed.GetReason())
+				}
+				return
+			}
+			t.Fatalf("first event = %v, want failed", describeEvents([]*dlssv1.ScanEvent{event}))
+		}
+	}
+	requireReason(t, err, contract.ReasonScanRootInvalid, codes.InvalidArgument)
+}
+
+func TestScanEmptySourcesIsRejected(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, _, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stream, err := scanClient.StartScan(ctx, &dlssv1.StartScanRequest{})
+	if err == nil {
+		var event *dlssv1.ScanEvent
+		event, err = stream.Recv()
+		if err == nil {
+			if failed := event.GetFailed(); failed != nil {
+				if failed.GetReason() != string(contract.ReasonScanRootInvalid) {
+					t.Errorf("failed.reason = %q, want SCAN_ROOT_INVALID", failed.GetReason())
+				}
+				return
+			}
+			t.Fatalf("first event = %v, want failed", describeEvents([]*dlssv1.ScanEvent{event}))
+		}
+	}
+	requireReason(t, err, contract.ReasonScanRootInvalid, codes.InvalidArgument)
+}
+
+func TestScanSkipsCustomFolderCoveredBySteam(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	lib := testfixtures.NewSteamLibrary(t)
+	gameDir := lib.AddGame(testfixtures.GameSpec{
+		AppID: 9200, Name: "Overlap Game", InstallDir: "Overlap Game",
+		DLLs: []testfixtures.DLLSpec{{Path: "nvngx_dlss.dll", Version: testfixtures.VersionInstalled}},
+	})
+
+	events := runScanSources(t, scanClient, steamSource(lib.Root()), customSource(gameDir))
+	finished := finishSummary(t, events)
+	if finished.GetGameCount() != 1 || finished.GetDllCount() != 1 {
+		t.Errorf("finished = %d games / %d DLLs, want 1 / 1", finished.GetGameCount(), finished.GetDllCount())
+	}
+	if _, ok := scanWarnings(events)[gameDir]; !ok {
+		t.Errorf("no warning for custom folder inside a Steam game: %v", scanWarnings(events))
+	}
+	if games := listGames(t, libraryClient); len(games) != 1 {
+		t.Fatalf("ListGames returned %d games, want 1", len(games))
+	}
+}
+
+func TestScanKeepsMostSpecificNestedCustomFolder(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	parent := writeCustomGame(t, []string{"nvngx_dlss.dll"})
+	child := filepath.Join(parent, "dlc")
+	testfixtures.WritePE(t, child, "libxess.dll", testfixtures.PEOptions{Version: testfixtures.VersionInstalled})
+
+	events := runScanSources(t, scanClient, customSource(parent), customSource(child))
+	finished := finishSummary(t, events)
+	if finished.GetGameCount() != 1 || finished.GetDllCount() != 1 {
+		t.Errorf("finished = %d games / %d DLLs, want 1 / 1", finished.GetGameCount(), finished.GetDllCount())
+	}
+	if _, ok := scanWarnings(events)[parent]; !ok {
+		t.Errorf("no warning for the covering custom folder: %v", scanWarnings(events))
+	}
+	games := listGames(t, libraryClient)
+	if len(games) != 1 || games[0].GetInstallPath() != child {
+		t.Fatalf("games = %v, want only the nested folder %q", games, child)
+	}
+}
+
+func TestScanReadableSteamRootWithoutLibrariesSucceeds(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	// A readable root with no steamapps directory is a warning, not an
+	// unreadable source: the old application finished with zero results.
+	root := t.TempDir()
+	events := runScanSources(t, scanClient, steamSource(root))
+	finished := finishSummary(t, events)
+	if finished.GetGameCount() != 0 || finished.GetDllCount() != 0 {
+		t.Errorf("finished = %d games / %d DLLs, want 0 / 0", finished.GetGameCount(), finished.GetDllCount())
+	}
+	if len(scanWarnings(events)) == 0 {
+		t.Error("no warning for a Steam root without steamapps")
+	}
+	if games := listGames(t, libraryClient); len(games) != 0 {
+		t.Errorf("ListGames returned %v, want no games", games)
+	}
+}
+
+func TestScanCustomFolderWithoutKnownDLLsWarnsAndPersists(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	dir := writeCustomGame(t, nil)
+	events := runScanSources(t, scanClient, customSource(dir))
+	finished := finishSummary(t, events)
+	if finished.GetGameCount() != 1 || finished.GetDllCount() != 0 {
+		t.Errorf("finished = %d games / %d DLLs, want 1 / 0", finished.GetGameCount(), finished.GetDllCount())
+	}
+	if _, ok := scanWarnings(events)[dir]; !ok {
+		t.Errorf("no warning for a custom folder without known DLLs: %v", scanWarnings(events))
+	}
+	games := listGames(t, libraryClient)
+	if len(games) != 1 || games[0].GetName() != "ZZZ" || len(games[0].GetDlls()) != 0 {
+		t.Fatalf("games = %v, want one empty ZZZ game", games)
+	}
+}
+
+func TestScanCustomFolderDoesNotClaimSteamGameDLLs(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	lib := testfixtures.NewSteamLibrary(t)
+	lib.AddGame(testfixtures.GameSpec{
+		AppID: 9300, Name: "Nested Steam Game", InstallDir: "Nested Steam Game",
+		DLLs: []testfixtures.DLLSpec{{Path: "bin/nvngx_dlss.dll", Version: testfixtures.VersionInstalled}},
+	})
+	common := filepath.Join(lib.Root(), "steamapps", "common")
+	testfixtures.WritePE(t, common, "libxess.dll", testfixtures.PEOptions{Version: testfixtures.VersionInstalled})
+
+	events := runScanSources(t, scanClient, steamSource(lib.Root()), customSource(common))
+	finished := finishSummary(t, events)
+	if finished.GetGameCount() != 2 || finished.GetDllCount() != 2 {
+		t.Errorf("finished = %d games / %d DLLs, want 2 / 2", finished.GetGameCount(), finished.GetDllCount())
+	}
+
+	games := listGames(t, libraryClient)
+	if len(games) != 2 {
+		t.Fatalf("ListGames returned %d games, want 2", len(games))
+	}
+	for _, game := range games {
+		if game.GetName() == "common" {
+			if len(game.GetDlls()) != 1 || strings.ToLower(game.GetDlls()[0].GetFilename()) != "libxess.dll" {
+				t.Errorf("custom common game claimed the Steam game DLLs: %v", game.GetDlls())
+			}
+		}
+	}
+}
+
+func TestScanDeduplicatesSymlinkedCustomFolderSpellings(t *testing.T) {
+	p := newPaths(t)
+	startSidecar(t, p)
+	scanClient, libraryClient, closeClients := scanClients(t, p.socket)
+	defer closeClients()
+
+	real := writeCustomGame(t, []string{"nvngx_dlss.dll"})
+	link := filepath.Join(t.TempDir(), "linked-game")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+
+	events := runScanSources(t, scanClient, customSource(link), customSource(real))
+	finished := finishSummary(t, events)
+	if finished.GetGameCount() != 1 || finished.GetDllCount() != 1 {
+		t.Errorf("finished = %d games / %d DLLs, want 1 / 1", finished.GetGameCount(), finished.GetDllCount())
+	}
+	games := listGames(t, libraryClient)
+	if len(games) != 1 {
+		t.Fatalf("ListGames returned %d games, want 1", len(games))
+	}
+	if games[0].GetInstallPath() != real {
+		t.Errorf("stored install path = %q, want the physical path %q", games[0].GetInstallPath(), real)
+	}
 }

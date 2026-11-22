@@ -1,4 +1,4 @@
-// Scan service: enumerate one Steam root and stream progress.
+// Scan service: enumerate the requested sources and stream progress.
 //
 // Cancellation: the client cancels the stream; there is no CancelScan method.
 // The server maps context cancellation to CANCELLED, keeps the results it has
@@ -24,9 +24,39 @@ service Scan {
 }
 
 message StartScanRequest {
-  // Absolute path of the Steam root the user selected. The sidecar never
-  // guesses a default root.
+  // Legacy single Steam root. Ignored when `sources` is non-empty; when
+  // `sources` is empty and this is set, it is treated as one Steam source.
+  // May be empty: a scan of custom folders only is valid.
   string steam_root = 1;
+
+  // Sources to scan, in order. Empty is rejected unless steam_root is set.
+  // Never scan the same physical directory through two sources; the sidecar
+  // deduplicates them and reports a warning.
+  repeated ScanSource sources = 2;
+}
+
+// ScanSource names one origin to enumerate. Each variant carries only the
+// information that origin needs; the sidecar resolves libraries and prefixes
+// itself.
+message ScanSource {
+  oneof source {
+    SteamSource steam = 1;
+    CustomFolderSource custom_folder = 2;
+  }
+}
+
+// SteamSource scans one Steam installation root and every library listed in
+// its steamapps/libraryfolders.vdf.
+message SteamSource {
+  // Absolute path of the Steam root, for example ~/.local/share/Steam.
+  string root = 1;
+}
+
+// CustomFolderSource scans one user-selected game directory recursively. The
+// directory itself is one game; its name is the directory basename.
+message CustomFolderSource {
+  // Absolute path of the game directory.
+  string path = 1;
 }
 
 message ScanEvent {
@@ -36,22 +66,28 @@ message ScanEvent {
     Game game_found = 3;
     ScanFinished finished = 4;
     ScanFailed failed = 5;
-    // Non-fatal problem (unreadable or vanished directory); the scan continues.
+    // Non-fatal problem; the scan continues. It can be a read failure, an
+    // unsupported or duplicate source, an overlap, or a folder without known
+    // technology DLLs.
     ScanWarning warning = 6;
   }
 }
 
 message ScanStarted {
+  // Steam root of the first Steam source, or empty when the scan has no Steam
+  // source (for example a custom-folders-only scan).
   string steam_root = 1;
   google.protobuf.Timestamp started_at = 2;
 }
 
 message ScanLibraryProgress {
-  // Absolute library root currently being traversed.
+  // Absolute path of the Steam library or custom game folder currently being
+  // traversed.
   string library_path = 1;
-  // 1-based index of the current library.
+  // 1-based index of the ScanSource being scanned. A Steam source counts
+  // once even when it contains several libraries.
   int32 library_index = 2;
-  // Total number of libraries found for this root.
+  // Total number of ScanSources in this scan.
   int32 library_count = 3;
   // Name of the game currently being traversed; empty between games.
   string current_game = 4;

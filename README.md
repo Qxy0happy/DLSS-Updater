@@ -1,14 +1,15 @@
 # DLSS Updater — Linux rewrite
 
 Linux desktop application for updating **DLSS / XeSS / FSR / Streamline** DLLs in
-installed Steam games, with automatic `.dlsss` backups and one-click restore.
+installed games, with automatic `.dlsss` backups and one-click restore.
 
 This branch contains the Flutter + Go rewrite. The historical Python/Flet
 implementation has been removed from the working tree; it remains available in
 git history. The current scope is the first end-to-end vertical slice:
-controlled Steam library scanning, single-DLL updates from a local DLL source,
-backups, restore and delete, with real progress, cancellation and errors over a
-private Unix-domain gRPC contract.
+controlled scanning of Steam libraries and hand-picked game folders,
+single-DLL updates from a local DLL source, backups, restore and delete, with
+real progress, cancellation and errors over a private Unix-domain gRPC
+contract.
 
 ## Architecture
 
@@ -16,7 +17,7 @@ private Unix-domain gRPC contract.
 | --- | --- | --- |
 | Frontend | Flutter 3.50 / Dart 3.14, Material 3 | Games, Backups, Settings, connection state; owns the sidecar process |
 | Contract | `proto/dlss/v1` | Single source of truth for both stacks; generated code is committed |
-| Sidecar | Go 1.27, statically linked `dlssd` | Steam scanning, PE versions, atomic replacement, backups, SQLite |
+| Sidecar | Go 1.27, statically linked `dlssd` | Scan sources, PE versions, atomic replacement, backups, SQLite |
 | Transport | gRPC over a private Unix socket | `$XDG_RUNTIME_DIR/dlss-updater/daemon-<pid>.sock`, mode `0600` |
 
 The sidecar never guesses a user directory. The frontend always passes

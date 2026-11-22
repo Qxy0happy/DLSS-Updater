@@ -78,6 +78,12 @@ class GamesViewModel extends ChangeNotifier {
 
   String? get steamRoot => settings.steamRoot;
 
+  List<String> get customFolders => settings.customFolders;
+
+  /// True when at least one source can be scanned (Steam or a custom folder).
+  bool get sourcesConfigured =>
+      (steamRoot != null && steamRoot!.isNotEmpty) || customFolders.isNotEmpty;
+
   String? get selectedGameId => _selectedGameId;
 
   Set<String> get selectedDllIds => Set.unmodifiable(_selectedDllIds);
@@ -170,9 +176,7 @@ class GamesViewModel extends ChangeNotifier {
     try {
       final selected = await settings.chooseSteamRoot();
       if (selected == null) return;
-      if (_failure?.retry == GamesRetryAction.chooseRoot) {
-        _failure = null;
-      }
+      _clearSourceFailure();
       notifyListeners();
     } catch (_) {
       _failure = settingsFailure;
@@ -180,12 +184,60 @@ class GamesViewModel extends ChangeNotifier {
     }
   }
 
-  /// Starts a scan of the currently selected Steam root.
+  /// Removes the Steam source without touching the custom folders.
+  Future<void> clearSteamRoot() async {
+    try {
+      await settings.clearSteamRoot();
+      notifyListeners();
+    } catch (_) {
+      _failure = settingsFailure;
+      notifyListeners();
+    }
+  }
+
+  /// Opens the picker for the source that most likely needs replacing.
+  ///
+  /// With only custom folders configured, the custom picker is the useful
+  /// one; otherwise the Steam picker is the primary path. The toolbar always
+  /// offers both.
+  Future<void> chooseSource() async {
+    final root = steamRoot;
+    if (root == null || root.isEmpty) {
+      await addCustomFolder();
+      return;
+    }
+    await chooseSteamRoot();
+  }
+
+  /// Opens the picker for one game directory and appends it to the sources.
+  Future<void> addCustomFolder() async {
+    try {
+      final selected = await settings.chooseCustomFolder();
+      if (selected == null) return;
+      _clearSourceFailure();
+      notifyListeners();
+    } catch (_) {
+      _failure = settingsFailure;
+      notifyListeners();
+    }
+  }
+
+  /// Removes one custom game folder from the sources.
+  Future<void> removeCustomFolder(String path) async {
+    try {
+      await settings.removeCustomFolder(path);
+      notifyListeners();
+    } catch (_) {
+      _failure = settingsFailure;
+      notifyListeners();
+    }
+  }
+
+  /// Starts a scan of every configured source.
   Future<void> startScan() async {
     if (scanning || updating) return;
-    final root = settings.steamRoot;
-    if (root == null || root.isEmpty) {
-      _fail(noSteamRootFailure);
+    if (!sourcesConfigured) {
+      _fail(noSourcesFailure);
       return;
     }
     _lastRequest = GamesRequestKind.scan;
@@ -197,7 +249,10 @@ class GamesViewModel extends ChangeNotifier {
       ..start();
     notifyListeners();
     try {
-      final session = repository.startScan(root);
+      final session = repository.startScan(
+        steamRoot: settings.steamRoot,
+        customFolders: settings.customFolders,
+      );
       _session = session;
       _subscription = session.events.listen(
         _onScanUpdate,
@@ -250,6 +305,8 @@ class GamesViewModel extends ChangeNotifier {
     switch (failure.retry) {
       case GamesRetryAction.chooseRoot:
         await chooseSteamRoot();
+      case GamesRetryAction.chooseSource:
+        await chooseSource();
       case GamesRetryAction.scan:
         await startScan();
       case GamesRetryAction.reload:
@@ -395,6 +452,14 @@ class GamesViewModel extends ChangeNotifier {
     _mergeGame(game);
     _pruneSelection();
     notifyListeners();
+  }
+
+  void _clearSourceFailure() {
+    final retry = _failure?.retry;
+    if (retry == GamesRetryAction.chooseRoot ||
+        retry == GamesRetryAction.chooseSource) {
+      _failure = null;
+    }
   }
 
   void _resetScan() {

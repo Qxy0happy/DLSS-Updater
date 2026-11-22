@@ -20,12 +20,79 @@ const StartScanRequest$json = {
   '1': 'StartScanRequest',
   '2': [
     {'1': 'steam_root', '3': 1, '4': 1, '5': 9, '10': 'steamRoot'},
+    {
+      '1': 'sources',
+      '3': 2,
+      '4': 3,
+      '5': 11,
+      '6': '.dlss.v1.ScanSource',
+      '10': 'sources'
+    },
   ],
 };
 
 /// Descriptor for `StartScanRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List startScanRequestDescriptor = $convert.base64Decode(
-    'ChBTdGFydFNjYW5SZXF1ZXN0Eh0KCnN0ZWFtX3Jvb3QYASABKAlSCXN0ZWFtUm9vdA==');
+    'ChBTdGFydFNjYW5SZXF1ZXN0Eh0KCnN0ZWFtX3Jvb3QYASABKAlSCXN0ZWFtUm9vdBItCgdzb3'
+    'VyY2VzGAIgAygLMhMuZGxzcy52MS5TY2FuU291cmNlUgdzb3VyY2Vz');
+
+@$core.Deprecated('Use scanSourceDescriptor instead')
+const ScanSource$json = {
+  '1': 'ScanSource',
+  '2': [
+    {
+      '1': 'steam',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.dlss.v1.SteamSource',
+      '9': 0,
+      '10': 'steam'
+    },
+    {
+      '1': 'custom_folder',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.dlss.v1.CustomFolderSource',
+      '9': 0,
+      '10': 'customFolder'
+    },
+  ],
+  '8': [
+    {'1': 'source'},
+  ],
+};
+
+/// Descriptor for `ScanSource`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List scanSourceDescriptor = $convert.base64Decode(
+    'CgpTY2FuU291cmNlEiwKBXN0ZWFtGAEgASgLMhQuZGxzcy52MS5TdGVhbVNvdXJjZUgAUgVzdG'
+    'VhbRJCCg1jdXN0b21fZm9sZGVyGAIgASgLMhsuZGxzcy52MS5DdXN0b21Gb2xkZXJTb3VyY2VI'
+    'AFIMY3VzdG9tRm9sZGVyQggKBnNvdXJjZQ==');
+
+@$core.Deprecated('Use steamSourceDescriptor instead')
+const SteamSource$json = {
+  '1': 'SteamSource',
+  '2': [
+    {'1': 'root', '3': 1, '4': 1, '5': 9, '10': 'root'},
+  ],
+};
+
+/// Descriptor for `SteamSource`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List steamSourceDescriptor =
+    $convert.base64Decode('CgtTdGVhbVNvdXJjZRISCgRyb290GAEgASgJUgRyb290');
+
+@$core.Deprecated('Use customFolderSourceDescriptor instead')
+const CustomFolderSource$json = {
+  '1': 'CustomFolderSource',
+  '2': [
+    {'1': 'path', '3': 1, '4': 1, '5': 9, '10': 'path'},
+  ],
+};
+
+/// Descriptor for `CustomFolderSource`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List customFolderSourceDescriptor = $convert
+    .base64Decode('ChJDdXN0b21Gb2xkZXJTb3VyY2USEgoEcGF0aBgBIAEoCVIEcGF0aA==');
 
 @$core.Deprecated('Use scanEventDescriptor instead')
 const ScanEvent$json = {

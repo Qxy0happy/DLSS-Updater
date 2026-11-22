@@ -24,9 +24,11 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 class StartScanRequest extends $pb.GeneratedMessage {
   factory StartScanRequest({
     $core.String? steamRoot,
+    $core.Iterable<ScanSource>? sources,
   }) {
     final result = StartScanRequest._();
     if (steamRoot != null) result.steamRoot = steamRoot;
+    if (sources != null) result.sources.addAll(sources);
     return result;
   }
 
@@ -44,6 +46,8 @@ class StartScanRequest extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'dlss.v1'),
       createEmptyInstance: StartScanRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'steamRoot')
+    ..pPM<ScanSource>(2, _omitFieldNames ? '' : 'sources',
+        subBuilder: ScanSource.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -68,8 +72,9 @@ class StartScanRequest extends $pb.GeneratedMessage {
           StartScanRequest.$_createMessage);
   static StartScanRequest? _defaultInstance;
 
-  /// Absolute path of the Steam root the user selected. The sidecar never
-  /// guesses a default root.
+  /// Legacy single Steam root. Ignored when `sources` is non-empty; when
+  /// `sources` is empty and this is set, it is treated as one Steam source.
+  /// May be empty: a scan of custom folders only is valid.
   @$pb.TagNumber(1)
   $core.String get steamRoot => $_getSZ(0);
   @$pb.TagNumber(1)
@@ -78,6 +83,224 @@ class StartScanRequest extends $pb.GeneratedMessage {
   $core.bool hasSteamRoot() => $_has(0);
   @$pb.TagNumber(1)
   void clearSteamRoot() => $_clearField(1);
+
+  /// Sources to scan, in order. Empty is rejected unless steam_root is set.
+  /// Never scan the same physical directory through two sources; the sidecar
+  /// deduplicates them and reports a warning.
+  @$pb.TagNumber(2)
+  $pb.PbList<ScanSource> get sources => $_getList(1);
+}
+
+enum ScanSource_Source { steam, customFolder, notSet }
+
+/// ScanSource names one origin to enumerate. Each variant carries only the
+/// information that origin needs; the sidecar resolves libraries and prefixes
+/// itself.
+class ScanSource extends $pb.GeneratedMessage {
+  factory ScanSource({
+    SteamSource? steam,
+    CustomFolderSource? customFolder,
+  }) {
+    final result = ScanSource._();
+    if (steam != null) result.steam = steam;
+    if (customFolder != null) result.customFolder = customFolder;
+    return result;
+  }
+
+  ScanSource._();
+
+  factory ScanSource.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ScanSource()..mergeFromBuffer(data, registry);
+  factory ScanSource.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ScanSource()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, ScanSource_Source> _ScanSource_SourceByTag =
+      {
+    1: ScanSource_Source.steam,
+    2: ScanSource_Source.customFolder,
+    0: ScanSource_Source.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ScanSource',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'dlss.v1'),
+      createEmptyInstance: ScanSource.$_createMessage)
+    ..oo(0, [1, 2])
+    ..aOM<SteamSource>(1, _omitFieldNames ? '' : 'steam',
+        subBuilder: SteamSource.$_createMessage)
+    ..aOM<CustomFolderSource>(2, _omitFieldNames ? '' : 'customFolder',
+        subBuilder: CustomFolderSource.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ScanSource clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ScanSource copyWith(void Function(ScanSource) updates) =>
+      super.copyWith((message) => updates(message as ScanSource)) as ScanSource;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ScanSource() / ScanSource.new instead')
+  static ScanSource create() => ScanSource._();
+  static $pb.GeneratedMessage $_createMessage() => ScanSource._();
+  @$core.override
+  ScanSource createEmptyInstance() => ScanSource._();
+  @$core.pragma('dart2js:noInline')
+  static ScanSource getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ScanSource>(ScanSource.$_createMessage);
+  static ScanSource? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(2)
+  ScanSource_Source whichSource() => _ScanSource_SourceByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(2)
+  void clearSource() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(1)
+  SteamSource get steam => $_getN(0);
+  @$pb.TagNumber(1)
+  set steam(SteamSource value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSteam() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSteam() => $_clearField(1);
+  @$pb.TagNumber(1)
+  SteamSource ensureSteam() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  CustomFolderSource get customFolder => $_getN(1);
+  @$pb.TagNumber(2)
+  set customFolder(CustomFolderSource value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCustomFolder() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCustomFolder() => $_clearField(2);
+  @$pb.TagNumber(2)
+  CustomFolderSource ensureCustomFolder() => $_ensure(1);
+}
+
+/// SteamSource scans one Steam installation root and every library listed in
+/// its steamapps/libraryfolders.vdf.
+class SteamSource extends $pb.GeneratedMessage {
+  factory SteamSource({
+    $core.String? root,
+  }) {
+    final result = SteamSource._();
+    if (root != null) result.root = root;
+    return result;
+  }
+
+  SteamSource._();
+
+  factory SteamSource.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SteamSource()..mergeFromBuffer(data, registry);
+  factory SteamSource.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SteamSource()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SteamSource',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'dlss.v1'),
+      createEmptyInstance: SteamSource.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'root')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SteamSource clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SteamSource copyWith(void Function(SteamSource) updates) =>
+      super.copyWith((message) => updates(message as SteamSource))
+          as SteamSource;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SteamSource() / SteamSource.new instead')
+  static SteamSource create() => SteamSource._();
+  static $pb.GeneratedMessage $_createMessage() => SteamSource._();
+  @$core.override
+  SteamSource createEmptyInstance() => SteamSource._();
+  @$core.pragma('dart2js:noInline')
+  static SteamSource getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SteamSource>(
+          SteamSource.$_createMessage);
+  static SteamSource? _defaultInstance;
+
+  /// Absolute path of the Steam root, for example ~/.local/share/Steam.
+  @$pb.TagNumber(1)
+  $core.String get root => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set root($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoot() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoot() => $_clearField(1);
+}
+
+/// CustomFolderSource scans one user-selected game directory recursively. The
+/// directory itself is one game; its name is the directory basename.
+class CustomFolderSource extends $pb.GeneratedMessage {
+  factory CustomFolderSource({
+    $core.String? path,
+  }) {
+    final result = CustomFolderSource._();
+    if (path != null) result.path = path;
+    return result;
+  }
+
+  CustomFolderSource._();
+
+  factory CustomFolderSource.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CustomFolderSource()..mergeFromBuffer(data, registry);
+  factory CustomFolderSource.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CustomFolderSource()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CustomFolderSource',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'dlss.v1'),
+      createEmptyInstance: CustomFolderSource.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'path')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CustomFolderSource clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CustomFolderSource copyWith(void Function(CustomFolderSource) updates) =>
+      super.copyWith((message) => updates(message as CustomFolderSource))
+          as CustomFolderSource;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CustomFolderSource() / CustomFolderSource.new instead')
+  static CustomFolderSource create() => CustomFolderSource._();
+  static $pb.GeneratedMessage $_createMessage() => CustomFolderSource._();
+  @$core.override
+  CustomFolderSource createEmptyInstance() => CustomFolderSource._();
+  @$core.pragma('dart2js:noInline')
+  static CustomFolderSource getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CustomFolderSource>(
+          CustomFolderSource.$_createMessage);
+  static CustomFolderSource? _defaultInstance;
+
+  /// Absolute path of the game directory.
+  @$pb.TagNumber(1)
+  $core.String get path => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set path($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPath() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPath() => $_clearField(1);
 }
 
 enum ScanEvent_Event {
@@ -236,7 +459,9 @@ class ScanEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   ScanFailed ensureFailed() => $_ensure(4);
 
-  /// Non-fatal problem (unreadable or vanished directory); the scan continues.
+  /// Non-fatal problem; the scan continues. It can be a read failure, an
+  /// unsupported or duplicate source, an overlap, or a folder without known
+  /// technology DLLs.
   @$pb.TagNumber(6)
   ScanWarning get warning => $_getN(5);
   @$pb.TagNumber(6)
@@ -300,6 +525,8 @@ class ScanStarted extends $pb.GeneratedMessage {
           ScanStarted.$_createMessage);
   static ScanStarted? _defaultInstance;
 
+  /// Steam root of the first Steam source, or empty when the scan has no Steam
+  /// source (for example a custom-folders-only scan).
   @$pb.TagNumber(1)
   $core.String get steamRoot => $_getSZ(0);
   @$pb.TagNumber(1)
@@ -384,7 +611,8 @@ class ScanLibraryProgress extends $pb.GeneratedMessage {
           ScanLibraryProgress.$_createMessage);
   static ScanLibraryProgress? _defaultInstance;
 
-  /// Absolute library root currently being traversed.
+  /// Absolute path of the Steam library or custom game folder currently being
+  /// traversed.
   @$pb.TagNumber(1)
   $core.String get libraryPath => $_getSZ(0);
   @$pb.TagNumber(1)
@@ -394,7 +622,8 @@ class ScanLibraryProgress extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearLibraryPath() => $_clearField(1);
 
-  /// 1-based index of the current library.
+  /// 1-based index of the ScanSource being scanned. A Steam source counts
+  /// once even when it contains several libraries.
   @$pb.TagNumber(2)
   $core.int get libraryIndex => $_getIZ(1);
   @$pb.TagNumber(2)
@@ -404,7 +633,7 @@ class ScanLibraryProgress extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearLibraryIndex() => $_clearField(2);
 
-  /// Total number of libraries found for this root.
+  /// Total number of ScanSources in this scan.
   @$pb.TagNumber(3)
   $core.int get libraryCount => $_getIZ(2);
   @$pb.TagNumber(3)

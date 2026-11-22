@@ -1,4 +1,4 @@
-// Scan service: enumerate one Steam root and stream progress.
+// Scan service: enumerate the requested sources and stream progress.
 //
 // Cancellation: the client cancels the stream; there is no CancelScan method.
 // The server maps context cancellation to CANCELLED, keeps the results it has
@@ -34,9 +34,14 @@ const (
 
 type StartScanRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Absolute path of the Steam root the user selected. The sidecar never
-	// guesses a default root.
-	SteamRoot     string `protobuf:"bytes,1,opt,name=steam_root,json=steamRoot,proto3" json:"steam_root,omitempty"`
+	// Legacy single Steam root. Ignored when `sources` is non-empty; when
+	// `sources` is empty and this is set, it is treated as one Steam source.
+	// May be empty: a scan of custom folders only is valid.
+	SteamRoot string `protobuf:"bytes,1,opt,name=steam_root,json=steamRoot,proto3" json:"steam_root,omitempty"`
+	// Sources to scan, in order. Empty is rejected unless steam_root is set.
+	// Never scan the same physical directory through two sources; the sidecar
+	// deduplicates them and reports a warning.
+	Sources       []*ScanSource `protobuf:"bytes,2,rep,name=sources,proto3" json:"sources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -78,6 +83,192 @@ func (x *StartScanRequest) GetSteamRoot() string {
 	return ""
 }
 
+func (x *StartScanRequest) GetSources() []*ScanSource {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+// ScanSource names one origin to enumerate. Each variant carries only the
+// information that origin needs; the sidecar resolves libraries and prefixes
+// itself.
+type ScanSource struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Source:
+	//
+	//	*ScanSource_Steam
+	//	*ScanSource_CustomFolder
+	Source        isScanSource_Source `protobuf_oneof:"source"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScanSource) Reset() {
+	*x = ScanSource{}
+	mi := &file_dlss_v1_scan_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScanSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScanSource) ProtoMessage() {}
+
+func (x *ScanSource) ProtoReflect() protoreflect.Message {
+	mi := &file_dlss_v1_scan_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScanSource.ProtoReflect.Descriptor instead.
+func (*ScanSource) Descriptor() ([]byte, []int) {
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ScanSource) GetSource() isScanSource_Source {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+func (x *ScanSource) GetSteam() *SteamSource {
+	if x != nil {
+		if x, ok := x.Source.(*ScanSource_Steam); ok {
+			return x.Steam
+		}
+	}
+	return nil
+}
+
+func (x *ScanSource) GetCustomFolder() *CustomFolderSource {
+	if x != nil {
+		if x, ok := x.Source.(*ScanSource_CustomFolder); ok {
+			return x.CustomFolder
+		}
+	}
+	return nil
+}
+
+type isScanSource_Source interface {
+	isScanSource_Source()
+}
+
+type ScanSource_Steam struct {
+	Steam *SteamSource `protobuf:"bytes,1,opt,name=steam,proto3,oneof"`
+}
+
+type ScanSource_CustomFolder struct {
+	CustomFolder *CustomFolderSource `protobuf:"bytes,2,opt,name=custom_folder,json=customFolder,proto3,oneof"`
+}
+
+func (*ScanSource_Steam) isScanSource_Source() {}
+
+func (*ScanSource_CustomFolder) isScanSource_Source() {}
+
+// SteamSource scans one Steam installation root and every library listed in
+// its steamapps/libraryfolders.vdf.
+type SteamSource struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Absolute path of the Steam root, for example ~/.local/share/Steam.
+	Root          string `protobuf:"bytes,1,opt,name=root,proto3" json:"root,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SteamSource) Reset() {
+	*x = SteamSource{}
+	mi := &file_dlss_v1_scan_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SteamSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SteamSource) ProtoMessage() {}
+
+func (x *SteamSource) ProtoReflect() protoreflect.Message {
+	mi := &file_dlss_v1_scan_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SteamSource.ProtoReflect.Descriptor instead.
+func (*SteamSource) Descriptor() ([]byte, []int) {
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SteamSource) GetRoot() string {
+	if x != nil {
+		return x.Root
+	}
+	return ""
+}
+
+// CustomFolderSource scans one user-selected game directory recursively. The
+// directory itself is one game; its name is the directory basename.
+type CustomFolderSource struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Absolute path of the game directory.
+	Path          string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CustomFolderSource) Reset() {
+	*x = CustomFolderSource{}
+	mi := &file_dlss_v1_scan_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CustomFolderSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CustomFolderSource) ProtoMessage() {}
+
+func (x *CustomFolderSource) ProtoReflect() protoreflect.Message {
+	mi := &file_dlss_v1_scan_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CustomFolderSource.ProtoReflect.Descriptor instead.
+func (*CustomFolderSource) Descriptor() ([]byte, []int) {
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CustomFolderSource) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
 type ScanEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Event:
@@ -95,7 +286,7 @@ type ScanEvent struct {
 
 func (x *ScanEvent) Reset() {
 	*x = ScanEvent{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[1]
+	mi := &file_dlss_v1_scan_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -107,7 +298,7 @@ func (x *ScanEvent) String() string {
 func (*ScanEvent) ProtoMessage() {}
 
 func (x *ScanEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[1]
+	mi := &file_dlss_v1_scan_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -120,7 +311,7 @@ func (x *ScanEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanEvent.ProtoReflect.Descriptor instead.
 func (*ScanEvent) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{1}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ScanEvent) GetEvent() isScanEvent_Event {
@@ -209,7 +400,9 @@ type ScanEvent_Failed struct {
 }
 
 type ScanEvent_Warning struct {
-	// Non-fatal problem (unreadable or vanished directory); the scan continues.
+	// Non-fatal problem; the scan continues. It can be a read failure, an
+	// unsupported or duplicate source, an overlap, or a folder without known
+	// technology DLLs.
 	Warning *ScanWarning `protobuf:"bytes,6,opt,name=warning,proto3,oneof"`
 }
 
@@ -226,7 +419,9 @@ func (*ScanEvent_Failed) isScanEvent_Event() {}
 func (*ScanEvent_Warning) isScanEvent_Event() {}
 
 type ScanStarted struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Steam root of the first Steam source, or empty when the scan has no Steam
+	// source (for example a custom-folders-only scan).
 	SteamRoot     string                 `protobuf:"bytes,1,opt,name=steam_root,json=steamRoot,proto3" json:"steam_root,omitempty"`
 	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -235,7 +430,7 @@ type ScanStarted struct {
 
 func (x *ScanStarted) Reset() {
 	*x = ScanStarted{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[2]
+	mi := &file_dlss_v1_scan_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -247,7 +442,7 @@ func (x *ScanStarted) String() string {
 func (*ScanStarted) ProtoMessage() {}
 
 func (x *ScanStarted) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[2]
+	mi := &file_dlss_v1_scan_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -260,7 +455,7 @@ func (x *ScanStarted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanStarted.ProtoReflect.Descriptor instead.
 func (*ScanStarted) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{2}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ScanStarted) GetSteamRoot() string {
@@ -279,11 +474,13 @@ func (x *ScanStarted) GetStartedAt() *timestamppb.Timestamp {
 
 type ScanLibraryProgress struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Absolute library root currently being traversed.
+	// Absolute path of the Steam library or custom game folder currently being
+	// traversed.
 	LibraryPath string `protobuf:"bytes,1,opt,name=library_path,json=libraryPath,proto3" json:"library_path,omitempty"`
-	// 1-based index of the current library.
+	// 1-based index of the ScanSource being scanned. A Steam source counts
+	// once even when it contains several libraries.
 	LibraryIndex int32 `protobuf:"varint,2,opt,name=library_index,json=libraryIndex,proto3" json:"library_index,omitempty"`
-	// Total number of libraries found for this root.
+	// Total number of ScanSources in this scan.
 	LibraryCount int32 `protobuf:"varint,3,opt,name=library_count,json=libraryCount,proto3" json:"library_count,omitempty"`
 	// Name of the game currently being traversed; empty between games.
 	CurrentGame string `protobuf:"bytes,4,opt,name=current_game,json=currentGame,proto3" json:"current_game,omitempty"`
@@ -296,7 +493,7 @@ type ScanLibraryProgress struct {
 
 func (x *ScanLibraryProgress) Reset() {
 	*x = ScanLibraryProgress{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[3]
+	mi := &file_dlss_v1_scan_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -308,7 +505,7 @@ func (x *ScanLibraryProgress) String() string {
 func (*ScanLibraryProgress) ProtoMessage() {}
 
 func (x *ScanLibraryProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[3]
+	mi := &file_dlss_v1_scan_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -321,7 +518,7 @@ func (x *ScanLibraryProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanLibraryProgress.ProtoReflect.Descriptor instead.
 func (*ScanLibraryProgress) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{3}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ScanLibraryProgress) GetLibraryPath() string {
@@ -377,7 +574,7 @@ type ScanWarning struct {
 
 func (x *ScanWarning) Reset() {
 	*x = ScanWarning{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[4]
+	mi := &file_dlss_v1_scan_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -389,7 +586,7 @@ func (x *ScanWarning) String() string {
 func (*ScanWarning) ProtoMessage() {}
 
 func (x *ScanWarning) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[4]
+	mi := &file_dlss_v1_scan_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -402,7 +599,7 @@ func (x *ScanWarning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanWarning.ProtoReflect.Descriptor instead.
 func (*ScanWarning) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{4}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ScanWarning) GetPath() string {
@@ -431,7 +628,7 @@ type ScanFinished struct {
 
 func (x *ScanFinished) Reset() {
 	*x = ScanFinished{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[5]
+	mi := &file_dlss_v1_scan_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -443,7 +640,7 @@ func (x *ScanFinished) String() string {
 func (*ScanFinished) ProtoMessage() {}
 
 func (x *ScanFinished) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[5]
+	mi := &file_dlss_v1_scan_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -456,7 +653,7 @@ func (x *ScanFinished) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanFinished.ProtoReflect.Descriptor instead.
 func (*ScanFinished) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{5}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ScanFinished) GetGameCount() int32 {
@@ -499,7 +696,7 @@ type ScanFailed struct {
 
 func (x *ScanFailed) Reset() {
 	*x = ScanFailed{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[6]
+	mi := &file_dlss_v1_scan_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -511,7 +708,7 @@ func (x *ScanFailed) String() string {
 func (*ScanFailed) ProtoMessage() {}
 
 func (x *ScanFailed) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[6]
+	mi := &file_dlss_v1_scan_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -524,7 +721,7 @@ func (x *ScanFailed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanFailed.ProtoReflect.Descriptor instead.
 func (*ScanFailed) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{6}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ScanFailed) GetReason() string {
@@ -545,10 +742,20 @@ var File_dlss_v1_scan_proto protoreflect.FileDescriptor
 
 const file_dlss_v1_scan_proto_rawDesc = "" +
 	"\n" +
-	"\x12dlss/v1/scan.proto\x12\adlss.v1\x1a\x14dlss/v1/common.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"1\n" +
+	"\x12dlss/v1/scan.proto\x12\adlss.v1\x1a\x14dlss/v1/common.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"`\n" +
 	"\x10StartScanRequest\x12\x1d\n" +
 	"\n" +
-	"steam_root\x18\x01 \x01(\tR\tsteamRoot\"\xd7\x02\n" +
+	"steam_root\x18\x01 \x01(\tR\tsteamRoot\x12-\n" +
+	"\asources\x18\x02 \x03(\v2\x13.dlss.v1.ScanSourceR\asources\"\x88\x01\n" +
+	"\n" +
+	"ScanSource\x12,\n" +
+	"\x05steam\x18\x01 \x01(\v2\x14.dlss.v1.SteamSourceH\x00R\x05steam\x12B\n" +
+	"\rcustom_folder\x18\x02 \x01(\v2\x1b.dlss.v1.CustomFolderSourceH\x00R\fcustomFolderB\b\n" +
+	"\x06source\"!\n" +
+	"\vSteamSource\x12\x12\n" +
+	"\x04root\x18\x01 \x01(\tR\x04root\"(\n" +
+	"\x12CustomFolderSource\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"\xd7\x02\n" +
 	"\tScanEvent\x120\n" +
 	"\astarted\x18\x01 \x01(\v2\x14.dlss.v1.ScanStartedH\x00R\astarted\x12I\n" +
 	"\x10library_progress\x18\x02 \x01(\v2\x1c.dlss.v1.ScanLibraryProgressH\x00R\x0flibraryProgress\x12.\n" +
@@ -601,33 +808,39 @@ func file_dlss_v1_scan_proto_rawDescGZIP() []byte {
 	return file_dlss_v1_scan_proto_rawDescData
 }
 
-var file_dlss_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_dlss_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_dlss_v1_scan_proto_goTypes = []any{
 	(*StartScanRequest)(nil),      // 0: dlss.v1.StartScanRequest
-	(*ScanEvent)(nil),             // 1: dlss.v1.ScanEvent
-	(*ScanStarted)(nil),           // 2: dlss.v1.ScanStarted
-	(*ScanLibraryProgress)(nil),   // 3: dlss.v1.ScanLibraryProgress
-	(*ScanWarning)(nil),           // 4: dlss.v1.ScanWarning
-	(*ScanFinished)(nil),          // 5: dlss.v1.ScanFinished
-	(*ScanFailed)(nil),            // 6: dlss.v1.ScanFailed
-	(*Game)(nil),                  // 7: dlss.v1.Game
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
+	(*ScanSource)(nil),            // 1: dlss.v1.ScanSource
+	(*SteamSource)(nil),           // 2: dlss.v1.SteamSource
+	(*CustomFolderSource)(nil),    // 3: dlss.v1.CustomFolderSource
+	(*ScanEvent)(nil),             // 4: dlss.v1.ScanEvent
+	(*ScanStarted)(nil),           // 5: dlss.v1.ScanStarted
+	(*ScanLibraryProgress)(nil),   // 6: dlss.v1.ScanLibraryProgress
+	(*ScanWarning)(nil),           // 7: dlss.v1.ScanWarning
+	(*ScanFinished)(nil),          // 8: dlss.v1.ScanFinished
+	(*ScanFailed)(nil),            // 9: dlss.v1.ScanFailed
+	(*Game)(nil),                  // 10: dlss.v1.Game
+	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
 }
 var file_dlss_v1_scan_proto_depIdxs = []int32{
-	2, // 0: dlss.v1.ScanEvent.started:type_name -> dlss.v1.ScanStarted
-	3, // 1: dlss.v1.ScanEvent.library_progress:type_name -> dlss.v1.ScanLibraryProgress
-	7, // 2: dlss.v1.ScanEvent.game_found:type_name -> dlss.v1.Game
-	5, // 3: dlss.v1.ScanEvent.finished:type_name -> dlss.v1.ScanFinished
-	6, // 4: dlss.v1.ScanEvent.failed:type_name -> dlss.v1.ScanFailed
-	4, // 5: dlss.v1.ScanEvent.warning:type_name -> dlss.v1.ScanWarning
-	8, // 6: dlss.v1.ScanStarted.started_at:type_name -> google.protobuf.Timestamp
-	0, // 7: dlss.v1.Scan.StartScan:input_type -> dlss.v1.StartScanRequest
-	1, // 8: dlss.v1.Scan.StartScan:output_type -> dlss.v1.ScanEvent
-	8, // [8:9] is the sub-list for method output_type
-	7, // [7:8] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	1,  // 0: dlss.v1.StartScanRequest.sources:type_name -> dlss.v1.ScanSource
+	2,  // 1: dlss.v1.ScanSource.steam:type_name -> dlss.v1.SteamSource
+	3,  // 2: dlss.v1.ScanSource.custom_folder:type_name -> dlss.v1.CustomFolderSource
+	5,  // 3: dlss.v1.ScanEvent.started:type_name -> dlss.v1.ScanStarted
+	6,  // 4: dlss.v1.ScanEvent.library_progress:type_name -> dlss.v1.ScanLibraryProgress
+	10, // 5: dlss.v1.ScanEvent.game_found:type_name -> dlss.v1.Game
+	8,  // 6: dlss.v1.ScanEvent.finished:type_name -> dlss.v1.ScanFinished
+	9,  // 7: dlss.v1.ScanEvent.failed:type_name -> dlss.v1.ScanFailed
+	7,  // 8: dlss.v1.ScanEvent.warning:type_name -> dlss.v1.ScanWarning
+	11, // 9: dlss.v1.ScanStarted.started_at:type_name -> google.protobuf.Timestamp
+	0,  // 10: dlss.v1.Scan.StartScan:input_type -> dlss.v1.StartScanRequest
+	4,  // 11: dlss.v1.Scan.StartScan:output_type -> dlss.v1.ScanEvent
+	11, // [11:12] is the sub-list for method output_type
+	10, // [10:11] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_dlss_v1_scan_proto_init() }
@@ -637,6 +850,10 @@ func file_dlss_v1_scan_proto_init() {
 	}
 	file_dlss_v1_common_proto_init()
 	file_dlss_v1_scan_proto_msgTypes[1].OneofWrappers = []any{
+		(*ScanSource_Steam)(nil),
+		(*ScanSource_CustomFolder)(nil),
+	}
+	file_dlss_v1_scan_proto_msgTypes[4].OneofWrappers = []any{
 		(*ScanEvent_Started)(nil),
 		(*ScanEvent_LibraryProgress)(nil),
 		(*ScanEvent_GameFound)(nil),
@@ -650,7 +867,7 @@ func file_dlss_v1_scan_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dlss_v1_scan_proto_rawDesc), len(file_dlss_v1_scan_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

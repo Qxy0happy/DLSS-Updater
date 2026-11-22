@@ -30,17 +30,19 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/Qxy0happy/DLSS-Updater/backend/gen/dlss/v1;dlssv1";
 
-// Game is one Steam library entry discovered from an appmanifest.
+// Game is one installed game discovered by a scan.
 message Game {
   // Stable identifier assigned by the sidecar store.
   string id = 1;
-  // Steam app id from the appmanifest; 0 when the manifest did not carry one.
+  // Steam app id from the appmanifest; 0 for custom folders and other sources.
   uint32 app_id = 2;
-  // Display name from the appmanifest.
+  // Display name: the appmanifest name for Steam, the launcher title when one
+  // exists, otherwise the game directory basename.
   string name = 3;
   // Absolute path of the installed game directory.
   string install_path = 4;
-  // Absolute path of the owning Steam library root.
+  // Absolute path of the owning scan source (Steam library root or custom
+  // game folder).
   string library_path = 5;
   // Known technology DLLs found inside the game directory.
   repeated GameDLL dlls = 6;
