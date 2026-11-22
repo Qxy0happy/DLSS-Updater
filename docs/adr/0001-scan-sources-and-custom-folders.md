@@ -15,6 +15,12 @@ path as identity. Nested custom folders keep the most specific one; a custom
 folder inside a Steam game is skipped with a warning. `MergedGame` is retired:
 one install path is one Game, even when the same title exists in two places.
 
+Heroic and Lutris are Launcher Sources represented by empty `HeroicSource` and
+`LutrisSource` messages; the sidecar auto-detects their native and Flatpak
+metadata locations, because the request must work the same inside a sandbox.
+A launcher game is skipped when Steam or a custom folder already owns that
+physical path.
+
 We rejected replacing `steam_root` outright (breaks the additive v1 evolution
 rule), treating a custom folder as a library (ambiguous Game boundaries and a
 poor fit for the ZZZ directory that motivated the change), and the old

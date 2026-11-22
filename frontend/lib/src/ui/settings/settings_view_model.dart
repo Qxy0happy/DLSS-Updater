@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/daemon_connection.dart';
 import '../../data/directory_picker.dart';
+import '../../data/launcher_detection.dart';
 import '../../data/ui_settings.dart';
 
 /// Settings state: the frontend-owned directories and the current daemon
@@ -13,6 +14,7 @@ class SettingsViewModel extends ChangeNotifier {
     required this.picker,
     required this.connection,
     required this.dataDir,
+    this.detector = const NoLauncherDetector(),
     UiSettings initial = const UiSettings(),
   }) : _settings = initial;
 
@@ -20,8 +22,10 @@ class SettingsViewModel extends ChangeNotifier {
   final DirectoryPicker picker;
   final DaemonConnection connection;
   final String dataDir;
+  final LauncherDetector detector;
 
   UiSettings _settings;
+  LauncherDetection _detection = const LauncherDetection();
   String? _error;
   bool _changingSource = false;
 
@@ -30,6 +34,18 @@ class SettingsViewModel extends ChangeNotifier {
   String? get steamRoot => _settings.steamRoot;
 
   List<String> get customFolders => List.unmodifiable(_settings.customFolders);
+
+  bool get heroicDetected => _detection.heroic;
+
+  bool get lutrisDetected => _detection.lutris;
+
+  /// A launcher is scanned only when it is detected and the persisted choice
+  /// (or the default) is on. Auto-detection is the only path supported in v1.
+  bool get heroicEnabled =>
+      _detection.heroic && (_settings.heroicEnabled ?? true);
+
+  bool get lutrisEnabled =>
+      _detection.lutris && (_settings.lutrisEnabled ?? true);
 
   String? get error => _error;
 
@@ -48,6 +64,34 @@ class SettingsViewModel extends ChangeNotifier {
   /// Removes the Steam root while keeping every custom folder.
   Future<void> clearSteamRoot() async {
     final updated = _settings.copyWith(clearSteamRoot: true);
+    await store.save(updated);
+    _settings = updated;
+    notifyListeners();
+  }
+
+  /// Detects the launcher configuration roots once per load. A detection
+  /// failure means "not found"; it must not block the Games view.
+  Future<void> detectLaunchers() async {
+    try {
+      final detection = await detector.detect();
+      _detection = detection;
+    } catch (_) {
+      _detection = const LauncherDetection();
+    }
+    notifyListeners();
+  }
+
+  /// Persists an explicit Heroic toggle choice.
+  Future<void> setHeroicEnabled(bool enabled) async {
+    final updated = _settings.copyWith(heroicEnabled: enabled);
+    await store.save(updated);
+    _settings = updated;
+    notifyListeners();
+  }
+
+  /// Persists an explicit Lutris toggle choice.
+  Future<void> setLutrisEnabled(bool enabled) async {
+    final updated = _settings.copyWith(lutrisEnabled: enabled);
     await store.save(updated);
     _settings = updated;
     notifyListeners();

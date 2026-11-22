@@ -8,6 +8,7 @@ import 'data/app_paths.dart';
 import 'data/daemon_client.dart';
 import 'data/daemon_connection.dart';
 import 'data/directory_picker.dart';
+import 'data/launcher_detection.dart';
 import 'data/ui_settings.dart';
 import 'ui/settings/settings_view_model.dart';
 
@@ -36,6 +37,7 @@ Future<AppEnvironment> bootstrap() async {
     picker: const NativeDirectoryPicker(),
     connection: connection,
     dataDir: paths.dataDir,
+    detector: const FileSystemLauncherDetector(),
     initial: saved.copyWith(dllSourceDir: dllSourceDir),
   );
   return AppEnvironment(

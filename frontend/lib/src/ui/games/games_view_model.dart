@@ -80,9 +80,20 @@ class GamesViewModel extends ChangeNotifier {
 
   List<String> get customFolders => settings.customFolders;
 
-  /// True when at least one source can be scanned (Steam or a custom folder).
+  bool get heroicDetected => settings.heroicDetected;
+
+  bool get lutrisDetected => settings.lutrisDetected;
+
+  bool get heroicEnabled => settings.heroicEnabled;
+
+  bool get lutrisEnabled => settings.lutrisEnabled;
+
+  /// True when at least one source can be scanned.
   bool get sourcesConfigured =>
-      (steamRoot != null && steamRoot!.isNotEmpty) || customFolders.isNotEmpty;
+      (steamRoot != null && steamRoot!.isNotEmpty) ||
+      customFolders.isNotEmpty ||
+      heroicEnabled ||
+      lutrisEnabled;
 
   String? get selectedGameId => _selectedGameId;
 
@@ -158,6 +169,7 @@ class GamesViewModel extends ChangeNotifier {
     _loading = true;
     notifyListeners();
     try {
+      await settings.detectLaunchers();
       _games = await repository.listGames();
       _failure = null;
       _pruneSelection();
@@ -222,6 +234,28 @@ class GamesViewModel extends ChangeNotifier {
     }
   }
 
+  /// Persists the Heroic source toggle.
+  Future<void> setHeroicEnabled(bool enabled) async {
+    try {
+      await settings.setHeroicEnabled(enabled);
+      notifyListeners();
+    } catch (_) {
+      _failure = settingsFailure;
+      notifyListeners();
+    }
+  }
+
+  /// Persists the Lutris source toggle.
+  Future<void> setLutrisEnabled(bool enabled) async {
+    try {
+      await settings.setLutrisEnabled(enabled);
+      notifyListeners();
+    } catch (_) {
+      _failure = settingsFailure;
+      notifyListeners();
+    }
+  }
+
   /// Removes one custom game folder from the sources.
   Future<void> removeCustomFolder(String path) async {
     try {
@@ -252,6 +286,8 @@ class GamesViewModel extends ChangeNotifier {
       final session = repository.startScan(
         steamRoot: settings.steamRoot,
         customFolders: settings.customFolders,
+        scanHeroic: settings.heroicEnabled,
+        scanLutris: settings.lutrisEnabled,
       );
       _session = session;
       _subscription = session.events.listen(

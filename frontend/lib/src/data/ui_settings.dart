@@ -10,6 +10,8 @@ class UiSettings {
     this.steamRoot,
     this.dllSourceDir,
     this.customFolders = const [],
+    this.heroicEnabled,
+    this.lutrisEnabled,
   });
 
   /// The Steam root chosen in the Games view. It is preserved across saves so
@@ -23,16 +25,25 @@ class UiSettings {
   /// game; order is the order the user added them.
   final List<String> customFolders;
 
+  /// Whether the auto-detected launcher source is scanned. Null means "use the
+  /// detected default".
+  final bool? heroicEnabled;
+  final bool? lutrisEnabled;
+
   UiSettings copyWith({
     String? steamRoot,
     bool clearSteamRoot = false,
     String? dllSourceDir,
     List<String>? customFolders,
+    bool? heroicEnabled,
+    bool? lutrisEnabled,
   }) {
     return UiSettings(
       steamRoot: clearSteamRoot ? null : steamRoot ?? this.steamRoot,
       dllSourceDir: dllSourceDir ?? this.dllSourceDir,
       customFolders: customFolders ?? this.customFolders,
+      heroicEnabled: heroicEnabled ?? this.heroicEnabled,
+      lutrisEnabled: lutrisEnabled ?? this.lutrisEnabled,
     );
   }
 }
@@ -70,6 +81,8 @@ class UiSettingsStore implements SettingsStore {
         steamRoot: _asPath(decoded['steam_root']),
         dllSourceDir: _asPath(decoded['dll_source_dir']),
         customFolders: _asPaths(decoded['custom_folders']),
+        heroicEnabled: _asBool(decoded['heroic_enabled']),
+        lutrisEnabled: _asBool(decoded['lutris_enabled']),
       );
     } on FormatException {
       return const UiSettings();
@@ -83,6 +96,8 @@ class UiSettingsStore implements SettingsStore {
       'steam_root': settings.steamRoot,
       'dll_source_dir': settings.dllSourceDir,
       'custom_folders': settings.customFolders,
+      'heroic_enabled': settings.heroicEnabled,
+      'lutris_enabled': settings.lutrisEnabled,
     });
     final temporary = File('${file.path}.tmp');
     await temporary.writeAsString(payload, flush: true);
@@ -93,6 +108,8 @@ class UiSettingsStore implements SettingsStore {
     if (value is! String) return null;
     return value.trim().isEmpty ? null : value;
   }
+
+  static bool? _asBool(Object? value) => value is bool ? value : null;
 
   /// Reads a stored path list, dropping malformed entries and duplicates.
   static List<String> _asPaths(Object? value) {

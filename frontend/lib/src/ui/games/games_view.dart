@@ -32,6 +32,8 @@ class GamesView extends StatelessWidget {
   static const Key chooseRootKey = Key('games-choose-root');
   static const Key clearRootKey = Key('games-clear-root');
   static const Key addCustomFolderKey = Key('games-add-custom-folder');
+  static const Key heroicToggleKey = Key('games-heroic-toggle');
+  static const Key lutrisToggleKey = Key('games-lutris-toggle');
   static const Key scanKey = Key('games-scan');
   static const Key cancelKey = Key('games-cancel');
   static const Key errorKey = Key('games-error');
@@ -521,6 +523,8 @@ class _ScanToolbar extends StatelessWidget {
         folders.length == 1
             ? '1 custom folder'
             : '${folders.length} custom folders',
+      if (viewModel.heroicEnabled) 'Heroic',
+      if (viewModel.lutrisEnabled) 'Lutris',
     ].join(' · ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -606,6 +610,29 @@ class _ScanToolbar extends StatelessWidget {
                     ),
                 ],
               ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('Launchers', style: theme.textTheme.labelSmall),
+                  _LauncherChip(
+                    chipKey: GamesView.heroicToggleKey,
+                    label: 'Heroic',
+                    detected: viewModel.heroicDetected,
+                    selected: viewModel.heroicEnabled,
+                    onChanged: locked ? null : viewModel.setHeroicEnabled,
+                  ),
+                  _LauncherChip(
+                    chipKey: GamesView.lutrisToggleKey,
+                    label: 'Lutris',
+                    detected: viewModel.lutrisDetected,
+                    selected: viewModel.lutrisEnabled,
+                    onChanged: locked ? null : viewModel.setLutrisEnabled,
+                  ),
+                ],
+              ),
               if (folders.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 SizedBox(
@@ -663,6 +690,38 @@ class _ScanToolbar extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LauncherChip extends StatelessWidget {
+  const _LauncherChip({
+    required this.chipKey,
+    required this.label,
+    required this.detected,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final Key chipKey;
+  final String label;
+  final bool detected;
+  final bool selected;
+  final Future<void> Function(bool)? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final onSelected = detected ? onChanged : null;
+    return Tooltip(
+      message: detected
+          ? 'Auto-detected at the standard configuration location'
+          : 'Not found at the standard configuration location',
+      child: FilterChip(
+        key: chipKey,
+        label: Text(detected ? label : '$label (not found)'),
+        selected: selected,
+        onSelected: onSelected == null ? null : (value) => onSelected(value),
       ),
     );
   }
@@ -823,8 +882,10 @@ class _ScanWarningsPanel extends StatelessWidget {
               ListTile(
                 dense: true,
                 leading: const Icon(Icons.folder_off_outlined, size: 18),
-                title: SelectableText(warning.path),
-                subtitle: Text(warning.message),
+                title: SelectableText(
+                  warning.path.isEmpty ? warning.message : warning.path,
+                ),
+                subtitle: warning.path.isEmpty ? null : Text(warning.message),
               ),
           ],
         ),

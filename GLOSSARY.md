@@ -32,6 +32,11 @@ Software that installs and starts games and owns the metadata a scan can read
 to find their install paths, such as Steam, Heroic or Lutris.
 _Avoid_: Store, platform
 
+**Launcher Source**:
+A ScanSource that discovers Games from a Launcher's installed-game metadata,
+such as Heroic or Lutris.
+_Avoid_: Auto-scan, detected folder
+
 **MergedGame**:
 A retired concept that presented several installed paths as one UI entry. The
 current model keeps one Game per install path and has no MergedGame.

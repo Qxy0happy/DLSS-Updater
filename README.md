@@ -6,10 +6,10 @@ installed games, with automatic `.dlsss` backups and one-click restore.
 This branch contains the Flutter + Go rewrite. The historical Python/Flet
 implementation has been removed from the working tree; it remains available in
 git history. The current scope is the first end-to-end vertical slice:
-controlled scanning of Steam libraries and hand-picked game folders,
-single-DLL updates from a local DLL source, backups, restore and delete, with
-real progress, cancellation and errors over a private Unix-domain gRPC
-contract.
+controlled scanning of Steam libraries, hand-picked game folders and
+Heroic/Lutris installs, single-DLL updates from a local DLL source, backups,
+restore and delete, with real progress, cancellation and errors over a private
+Unix-domain gRPC contract.
 
 ## Architecture
 
