@@ -1,0 +1,84 @@
+name: New stack
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "proto/**"
+      - "tools/**"
+      - "Makefile"
+      - "VERSION"
+      - ".github/workflows/new-stack.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "proto/**"
+      - "tools/**"
+      - "Makefile"
+      - "VERSION"
+      - ".github/workflows/new-stack.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Go 1.27)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.x"
+          cache-dependency-path: backend/go.sum
+      - name: Test
+        run: make backend-test
+      - name: Integration
+        # Starts the real dlssd binary over a real Unix socket after the unit
+        # suite. It must run serially with the generated-code check, which
+        # rewrites backend/gen.
+        run: make backend-integration
+
+  frontend:
+    name: Frontend (Flutter 3.50.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.50.0"
+          channel: stable
+          cache: true
+      - name: Test
+        run: make frontend-test
+
+  codegen-check:
+    name: Generated code is current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.x"
+          cache-dependency-path: backend/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.50.0"
+          channel: stable
+          cache: true
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "36.1"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned Go plugins
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - name: Install pinned Dart plugin
+        run: |
+          dart pub global activate protoc_plugin 25.1.0
+          echo "$HOME/.pub-cache/bin" >> "$GITHUB_PATH"
+      - name: Check
+        run: make codegen-check

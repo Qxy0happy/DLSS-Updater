@@ -40,3 +40,7 @@ repo-key.gpg
 
 # Local key files for other tools (not part of this project)
 *.key
+
+# New stack build outputs (Flutter + Go sidecar)
+/build/
+/backend/bin/

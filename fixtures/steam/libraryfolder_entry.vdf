@@ -1,0 +1,12 @@
+	"{{INDEX}}"
+	{
+		"path"		"{{PATH}}"
+		"label"		""
+		"contentid"		"{{CONTENT_ID}}"
+		"totalsize"		"0"
+		"update_clean_bytes_tally"		"0"
+		"time_last_update_verified"		"0"
+		"apps"
+		{
+		}
+	}

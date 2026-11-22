@@ -1,0 +1,49 @@
+// Backup service: list, restore and delete `.dlsss` backups.
+//
+// Errors follow the convention documented in common.proto.
+syntax = "proto3";
+
+package dlss.v1;
+
+import "dlss/v1/common.proto";
+
+option go_package = "github.com/Qxy0happy/DLSS-Updater/backend/gen/dlss/v1;dlssv1";
+
+service Backup {
+  // ListBackups returns backup records, newest first. Active records are the
+  // default; include_inactive adds restored and superseded ones.
+  rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
+  // RestoreBackup atomically puts the backup back in place of the target and
+  // marks the backup as restored.
+  rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse);
+  // DeleteBackup removes the backup file and marks the record inactive.
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+}
+
+message ListBackupsRequest {
+  // Optional game id filter; empty lists every game.
+  string game_id = 1;
+  // Include restored and superseded backups in the response.
+  bool include_inactive = 2;
+}
+
+message ListBackupsResponse {
+  repeated BackupRecord backups = 1;
+}
+
+message RestoreBackupRequest {
+  string backup_id = 1;
+}
+
+message RestoreBackupResponse {
+  // The target DLL after the restore, with its refreshed version.
+  GameDLL dll = 1;
+  // The backup record after the restore.
+  BackupRecord backup = 2;
+}
+
+message DeleteBackupRequest {
+  string backup_id = 1;
+}
+
+message DeleteBackupResponse {}

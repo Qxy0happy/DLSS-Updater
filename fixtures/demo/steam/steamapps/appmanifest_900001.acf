@@ -1,0 +1,12 @@
+"AppState"
+{
+	"appid"		"900001"
+	"Universe"		"1"
+	"name"		"Fixture Game"
+	"StateFlags"		"4"
+	"installdir"		"Fixture Game"
+	"LastUpdated"		"1700000000"
+	"SizeOnDisk"		"1073741824"
+	"StagingPath"		""
+	"buildid"		"1800003"
+}

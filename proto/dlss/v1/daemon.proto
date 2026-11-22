@@ -1,0 +1,40 @@
+// Daemon service: handshake, version negotiation and orderly shutdown.
+//
+// Errors follow the convention documented in common.proto.
+syntax = "proto3";
+
+package dlss.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Qxy0happy/DLSS-Updater/backend/gen/dlss/v1;dlssv1";
+
+service Daemon {
+  // GetStatus is the startup handshake. The frontend compares proto_version
+  // before enabling any operation.
+  rpc GetStatus(GetStatusRequest) returns (Status);
+  // Shutdown makes the sidecar stop after the response is delivered. Open
+  // streams must not delay it.
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+message GetStatusRequest {}
+
+message Status {
+  // Contract version served by the sidecar, for example "dlss.v1".
+  string proto_version = 1;
+  // Application version of the sidecar binary.
+  string app_version = 2;
+  // Process id of the sidecar.
+  int32 pid = 3;
+  // When the sidecar process started.
+  google.protobuf.Timestamp start_time = 4;
+  // Whether a scan is currently running.
+  bool scan_running = 5;
+  // Whether an update run is currently running.
+  bool update_running = 6;
+}
+
+message ShutdownRequest {}
+
+message ShutdownResponse {}

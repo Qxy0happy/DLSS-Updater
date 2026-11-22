@@ -1,0 +1,12 @@
+"AppState"
+{
+	"appid"		"{{APP_ID}}"
+	"Universe"		"1"
+	"name"		"{{NAME}}"
+	"StateFlags"		"4"
+	"installdir"		"{{INSTALL_DIR}}"
+	"LastUpdated"		"1700000000"
+	"SizeOnDisk"		"{{SIZE_ON_DISK}}"
+	"StagingPath"		""
+	"buildid"		"{{BUILD_ID}}"
+}

@@ -1,0 +1,81 @@
+// Scan service: enumerate one Steam root and stream progress.
+//
+// Cancellation: the client cancels the stream; there is no CancelScan method.
+// The server maps context cancellation to CANCELLED, keeps the results it has
+// already persisted, and still sends exactly one ScanFinished with
+// cancelled = true for a run that started successfully.
+//
+// Errors follow the convention documented in common.proto. A failed run sends
+// ScanFailed and then terminates the stream with a matching non-OK status.
+syntax = "proto3";
+
+package dlss.v1;
+
+import "dlss/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Qxy0happy/DLSS-Updater/backend/gen/dlss/v1;dlssv1";
+
+service Scan {
+  // StartScan starts a scan of the given Steam root and streams its events.
+  // Only one scan may run at a time; a concurrent start fails with
+  // SCAN_IN_PROGRESS.
+  rpc StartScan(StartScanRequest) returns (stream ScanEvent);
+}
+
+message StartScanRequest {
+  // Absolute path of the Steam root the user selected. The sidecar never
+  // guesses a default root.
+  string steam_root = 1;
+}
+
+message ScanEvent {
+  oneof event {
+    ScanStarted started = 1;
+    ScanLibraryProgress library_progress = 2;
+    Game game_found = 3;
+    ScanFinished finished = 4;
+    ScanFailed failed = 5;
+    // Non-fatal problem (unreadable or vanished directory); the scan continues.
+    ScanWarning warning = 6;
+  }
+}
+
+message ScanStarted {
+  string steam_root = 1;
+  google.protobuf.Timestamp started_at = 2;
+}
+
+message ScanLibraryProgress {
+  // Absolute library root currently being traversed.
+  string library_path = 1;
+  // 1-based index of the current library.
+  int32 library_index = 2;
+  // Total number of libraries found for this root.
+  int32 library_count = 3;
+  // Name of the game currently being traversed; empty between games.
+  string current_game = 4;
+  // Counters accumulated so far.
+  int32 games_found = 5;
+  int32 dlls_found = 6;
+}
+
+message ScanWarning {
+  string path = 1;
+  // English, user-facing explanation.
+  string message = 2;
+}
+
+message ScanFinished {
+  int32 game_count = 1;
+  int32 dll_count = 2;
+  bool cancelled = 3;
+  int64 duration_ms = 4;
+}
+
+message ScanFailed {
+  // Stable reason, the same value carried by the terminating status.
+  string reason = 1;
+  // English, user-facing explanation.
+  string message = 2;
+}

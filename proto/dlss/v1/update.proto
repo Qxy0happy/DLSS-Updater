@@ -1,0 +1,84 @@
+// Update service: replace the DLLs of a selected list, one file at a time.
+//
+// Cancellation: the client cancels the stream; there is no CancelUpdate
+// method. The server checks cancellation between items; an item already in
+// flight either completes its atomic replacement or leaves the target
+// untouched.
+//
+// Errors follow the convention documented in common.proto.
+syntax = "proto3";
+
+package dlss.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Qxy0happy/DLSS-Updater/backend/gen/dlss/v1;dlssv1";
+
+service Update {
+  // StartUpdate updates the given GameDLL ids from the configured DLL source
+  // directory. Only one update run may be active at a time; a concurrent
+  // start fails with UPDATE_IN_PROGRESS.
+  rpc StartUpdate(StartUpdateRequest) returns (stream UpdateEvent);
+}
+
+message StartUpdateRequest {
+  // GameDLL ids to process, in the order the server should process them.
+  repeated string dll_ids = 1;
+}
+
+message UpdateEvent {
+  oneof event {
+    UpdateStarted started = 1;
+    UpdateItemStarted item_started = 2;
+    UpdateItemFinished item_finished = 3;
+    UpdateFinished finished = 4;
+    UpdateFailed failed = 5;
+  }
+}
+
+message UpdateStarted {
+  int32 item_count = 1;
+  google.protobuf.Timestamp started_at = 2;
+}
+
+message UpdateItemStarted {
+  string dll_id = 1;
+  string filename = 2;
+  // 1-based index of this item.
+  int32 index = 3;
+  int32 total = 4;
+}
+
+enum UpdateOutcome {
+  UPDATE_OUTCOME_UNSPECIFIED = 0;
+  UPDATE_OUTCOME_UPDATED = 1;
+  UPDATE_OUTCOME_SKIPPED = 2;
+  UPDATE_OUTCOME_FAILED = 3;
+}
+
+message UpdateItemFinished {
+  string dll_id = 1;
+  UpdateOutcome outcome = 2;
+  // Stable reason for a skip or a failure; empty on success.
+  string reason = 3;
+  // Backup record created for this item; empty when no backup was made.
+  string backup_id = 4;
+  // Version now present on disk after the item was processed.
+  string resulting_version = 5;
+  int64 duration_ms = 6;
+}
+
+message UpdateFinished {
+  int32 succeeded = 1;
+  int32 skipped = 2;
+  int32 failed = 3;
+  bool cancelled = 4;
+  int64 duration_ms = 5;
+}
+
+message UpdateFailed {
+  // Stable reason, the same value carried by the terminating status.
+  string reason = 1;
+  // English, user-facing explanation.
+  string message = 2;
+}

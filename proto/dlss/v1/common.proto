@@ -1,0 +1,101 @@
+// Package dlss.v1 is the only contract between the Flutter frontend and the
+// Go sidecar (dlssd). Both stacks commit the generated code; the contract is
+// the behavior seam every test drives.
+//
+// Evolution rules: v1 evolves additively only. Never renumber a field, never
+// change the meaning of an existing field, never remove a method. Add new
+// fields, enum values and methods instead. Clients ignore unknown fields.
+//
+// Error convention: every non-OK gRPC status carries a
+// google.rpc.ErrorInfo message in its status details:
+//
+//   domain                = "dlss.v1"
+//   reason                = one of the stable reasons listed below
+//   metadata["path"]      = the relevant filesystem path (omitted when the
+//                           error is not about a path)
+//   metadata["retryable"] = "true" or "false"
+//
+// The status message is English, user-facing text. Clients branch on `reason`
+// only; they never parse the message.
+//
+// Stable reasons: ALREADY_RUNNING, SCAN_ROOT_INVALID, SCAN_IN_PROGRESS,
+// UPDATE_IN_PROGRESS, TARGET_MISSING, SOURCE_MISSING, PERMISSION_DENIED,
+// VERSION_MISMATCH, BACKUP_MISSING, BACKUP_CORRUPT, TARGET_FOLDER_MISSING,
+// METADATA_STALE, CANCELLED, INTERNAL.
+syntax = "proto3";
+
+package dlss.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Qxy0happy/DLSS-Updater/backend/gen/dlss/v1;dlssv1";
+
+// Game is one Steam library entry discovered from an appmanifest.
+message Game {
+  // Stable identifier assigned by the sidecar store.
+  string id = 1;
+  // Steam app id from the appmanifest; 0 when the manifest did not carry one.
+  uint32 app_id = 2;
+  // Display name from the appmanifest.
+  string name = 3;
+  // Absolute path of the installed game directory.
+  string install_path = 4;
+  // Absolute path of the owning Steam library root.
+  string library_path = 5;
+  // Known technology DLLs found inside the game directory.
+  repeated GameDLL dlls = 6;
+}
+
+// GameDLL is one concrete known-technology file inside a game directory.
+message GameDLL {
+  // Stable identifier assigned by the sidecar store.
+  string id = 1;
+  // Identifier of the owning game.
+  string game_id = 2;
+  // Stable lowercase catalog id, for example "dlss" or "dlss_g".
+  string dll_type = 3;
+  // Base file name, for example "nvngx_dlss.dll".
+  string filename = 4;
+  // Absolute path of the target file.
+  string path = 5;
+  // Version read from the target PE file, normalized to dotted form.
+  // "0.0.0" when it could not be parsed.
+  string current_version = 6;
+  // Version of the same file name in the configured DLL source directory.
+  // Empty when no source file exists.
+  string source_version = 7;
+  // Whether the target file exists on disk right now.
+  bool exists = 8;
+  // Set when the last scan no longer found the target file.
+  google.protobuf.Timestamp missing_at = 9;
+}
+
+// BackupRecord describes a `.dlsss` backup file and its bookkeeping row.
+message BackupRecord {
+  // Stable identifier assigned by the sidecar store.
+  string id = 1;
+  // Identifier of the game the backup belongs to.
+  string game_id = 2;
+  // Identifier of the GameDLL the backup was taken from.
+  string dll_id = 3;
+  // Game display name, copied for display after a rescan.
+  string game_name = 4;
+  // Backup file name of the original DLL.
+  string dll_filename = 5;
+  // Stable lowercase catalog id of the original DLL.
+  string dll_type = 6;
+  // Absolute path of the `.dlsss` backup file.
+  string backup_path = 7;
+  // Version the target had before the update.
+  string original_version = 8;
+  // Size of the backup file in bytes.
+  int64 size_bytes = 9;
+  // When the backup was created.
+  google.protobuf.Timestamp created_at = 10;
+  // Whether the backup is still restore-able as the current backup.
+  bool is_active = 11;
+  // When the backup was restored, if it ever was.
+  google.protobuf.Timestamp restored_at = 12;
+  // Whether the target DLL still exists on disk. False marks an orphan backup.
+  bool target_exists = 13;
+}

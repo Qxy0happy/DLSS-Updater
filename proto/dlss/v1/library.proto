@@ -1,0 +1,29 @@
+// Library service: read the games and DLLs persisted by the last scan.
+//
+// Errors follow the convention documented in common.proto. A game id that is
+// unknown to the store yields NOT_FOUND with reason TARGET_MISSING.
+syntax = "proto3";
+
+package dlss.v1;
+
+import "dlss/v1/common.proto";
+
+option go_package = "github.com/Qxy0happy/DLSS-Updater/backend/gen/dlss/v1;dlssv1";
+
+service Library {
+  // ListGames returns every scanned game with its DLLs.
+  rpc ListGames(ListGamesRequest) returns (ListGamesResponse);
+  // GetGame returns one game with its DLLs, including source versions
+  // resolved from the configured DLL source directory.
+  rpc GetGame(GetGameRequest) returns (Game);
+}
+
+message ListGamesRequest {}
+
+message ListGamesResponse {
+  repeated Game games = 1;
+}
+
+message GetGameRequest {
+  string game_id = 1;
+}
