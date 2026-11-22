@@ -4,6 +4,7 @@ import 'package:dlss_updater/src/app_environment.dart';
 import 'package:dlss_updater/src/app_exit.dart';
 import 'package:dlss_updater/src/data/daemon_connection.dart';
 import 'package:dlss_updater/src/data/directory_picker.dart';
+import 'package:dlss_updater/src/data/launcher_detection.dart';
 import 'package:dlss_updater/src/data/ui_settings.dart';
 import 'package:dlss_updater/src/ui/settings/settings_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,6 +81,20 @@ class FakeDaemonConnection extends DaemonConnection {
   }
 }
 
+/// Programmable launcher detection.
+class FakeLauncherDetector implements LauncherDetector {
+  FakeLauncherDetector({this.detection = const LauncherDetection()});
+
+  LauncherDetection detection;
+  int calls = 0;
+
+  @override
+  Future<LauncherDetection> detect() async {
+    calls += 1;
+    return detection;
+  }
+}
+
 /// Programmable directory picker.
 class FakeDirectoryPicker implements DirectoryPicker {
   final List<String> queuedPaths = <String>[];
@@ -100,6 +115,7 @@ class FakeDirectoryPicker implements DirectoryPicker {
 AppEnvironment fakeAppEnvironment({
   FakeDaemonConnection? connection,
   FakeDirectoryPicker? picker,
+  FakeLauncherDetector? detector,
   UiSettings initial = const UiSettings(),
   String? dataDir,
 }) {
@@ -119,6 +135,7 @@ AppEnvironment fakeAppEnvironment({
     picker: picker ?? FakeDirectoryPicker(),
     connection: conn,
     dataDir: directory,
+    detector: detector ?? FakeLauncherDetector(),
     initial: initial.copyWith(
       dllSourceDir: initial.dllSourceDir ?? conn.dllSourceDir,
     ),

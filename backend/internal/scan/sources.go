@@ -19,6 +19,8 @@ const (
 	sourceUnknown sourceKind = iota
 	sourceSteam
 	sourceCustomFolder
+	sourceHeroic
+	sourceLutris
 )
 
 // source is one validated-or-rejected request entry. Path may be empty when
@@ -29,9 +31,10 @@ type source struct {
 	Path string
 }
 
-// scanUnit is one progress-visible unit of work: a Steam library or one custom
-// game folder. Games holds everything planned for the unit before the scan
-// starts, so warnings and protected roots are known up front.
+// scanUnit is one progress-visible unit of work: a Steam library, one custom
+// game folder, or a launcher batch. Games holds everything planned for the
+// unit before the scan starts, so warnings and protected roots are known up
+// front.
 type scanUnit struct {
 	Kind sourceKind
 	// Path is the progress-visible path: a Steam library or a custom folder.
@@ -73,6 +76,10 @@ func sourcesFromRequest(req *dlssv1.StartScanRequest) []source {
 					Kind: sourceCustomFolder,
 					Path: strings.TrimSpace(entry.GetCustomFolder().GetPath()),
 				})
+			case entry.GetHeroic() != nil:
+				sources = append(sources, source{Kind: sourceHeroic})
+			case entry.GetLutris() != nil:
+				sources = append(sources, source{Kind: sourceLutris})
 			default:
 				sources = append(sources, source{Kind: sourceUnknown})
 			}
@@ -113,6 +120,10 @@ func buildScanPlan(ctx context.Context, sources []source) (scanPlan, error) {
 			group := 0
 			for _, lib := range libraries {
 				if !seenSteamRoots.add(lib.Root) {
+					plan.Warnings = append(plan.Warnings, warning{
+						Path:    lib.Root,
+						Message: "This Steam library is already covered by another source; it is skipped.",
+					})
 					continue
 				}
 				if group == 0 {
@@ -147,6 +158,34 @@ func buildScanPlan(ctx context.Context, sources []source) (scanPlan, error) {
 					InstallPath: installPath,
 					LibraryRoot: installPath,
 				}},
+			})
+		case sourceHeroic:
+			discovery := discoverHeroic()
+			plan.Warnings = append(plan.Warnings, discovery.Warnings...)
+			if !discovery.Readable {
+				continue
+			}
+			readableSources++
+			nextGroup++
+			plan.Units = append(plan.Units, scanUnit{
+				Kind:        sourceHeroic,
+				Path:        discovery.Path,
+				SourceGroup: nextGroup,
+				Games:       discovery.Games,
+			})
+		case sourceLutris:
+			discovery := discoverLutris()
+			plan.Warnings = append(plan.Warnings, discovery.Warnings...)
+			if !discovery.Readable {
+				continue
+			}
+			readableSources++
+			nextGroup++
+			plan.Units = append(plan.Units, scanUnit{
+				Kind:        sourceLutris,
+				Path:        discovery.Path,
+				SourceGroup: nextGroup,
+				Games:       discovery.Games,
 			})
 		default:
 			plan.Warnings = append(plan.Warnings, warning{
@@ -233,15 +272,57 @@ func buildScanPlan(ctx context.Context, sources []source) (scanPlan, error) {
 	keptCustomGroups := make(map[int]struct{}, len(kept))
 	for _, unit := range kept {
 		keptCustomGroups[unit.SourceGroup] = struct{}{}
+		for _, g := range unit.Games {
+			plan.Protected.add(g.InstallPath)
+		}
 	}
-	units := make([]scanUnit, 0, len(plan.Units))
-	for _, unit := range plan.Units {
-		if unit.Kind == sourceSteam {
-			units = append(units, unit)
+
+	// Launcher games come after Steam and custom folders: an explicit source
+	// wins over auto-detection. Launcher games that are nested inside one
+	// another are both kept; findDLLs fences the child subtree so each game
+	// owns its own DLLs. Only an exact duplicate path is skipped.
+	explicitClaimed := make(realPathSet, len(plan.Protected))
+	for path := range plan.Protected {
+		explicitClaimed[path] = struct{}{}
+	}
+	launcherRoots := realPathSet{}
+	for i := range plan.Units {
+		unit := &plan.Units[i]
+		if unit.Kind != sourceHeroic && unit.Kind != sourceLutris {
 			continue
 		}
-		if _, ok := keptCustomGroups[unit.SourceGroup]; ok {
+		keptGames := make([]game, 0, len(unit.Games))
+		for _, g := range unit.Games {
+			if coveredByAny(g.InstallPath, explicitClaimed) {
+				plan.Warnings = append(plan.Warnings, warning{
+					Path:    g.InstallPath,
+					Message: "This game is already covered by another scan source; it is skipped.",
+				})
+				continue
+			}
+			if launcherRoots.has(g.InstallPath) {
+				plan.Warnings = append(plan.Warnings, warning{
+					Path:    g.InstallPath,
+					Message: "This game is already covered by another launcher; it is skipped.",
+				})
+				continue
+			}
+			keptGames = append(keptGames, g)
+			launcherRoots.add(g.InstallPath)
+			plan.Protected.add(g.InstallPath)
+		}
+		unit.Games = keptGames
+	}
+
+	units := make([]scanUnit, 0, len(plan.Units))
+	for _, unit := range plan.Units {
+		switch unit.Kind {
+		case sourceSteam, sourceHeroic, sourceLutris:
 			units = append(units, unit)
+		case sourceCustomFolder:
+			if _, ok := keptCustomGroups[unit.SourceGroup]; ok {
+				units = append(units, unit)
+			}
 		}
 	}
 

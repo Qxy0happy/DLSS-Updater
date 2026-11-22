@@ -44,6 +44,16 @@ void main() {
     expect(loaded.customFolders, ['/games/ZZZ', '/games/Other']);
   });
 
+  test('round-trips explicit launcher toggles', () async {
+    await store.save(
+      const UiSettings(heroicEnabled: false, lutrisEnabled: true),
+    );
+
+    final loaded = await store.load();
+    expect(loaded.heroicEnabled, isFalse);
+    expect(loaded.lutrisEnabled, isTrue);
+  });
+
   test('clearing the Steam root keeps custom folders', () async {
     const initial = UiSettings(
       steamRoot: '/steam/library',

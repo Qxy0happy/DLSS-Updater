@@ -42,6 +42,8 @@ message ScanSource {
   oneof source {
     SteamSource steam = 1;
     CustomFolderSource custom_folder = 2;
+    HeroicSource heroic = 3;
+    LutrisSource lutris = 4;
   }
 }
 
@@ -58,6 +60,15 @@ message CustomFolderSource {
   // Absolute path of the game directory.
   string path = 1;
 }
+
+// HeroicSource scans the installed games recorded by Heroic Games Launcher.
+// The sidecar auto-detects the native and Flatpak configuration roots; the
+// source carries no path so the same request works inside a sandbox.
+message HeroicSource {}
+
+// LutrisSource scans the installed games recorded in Lutris's pga.db. The
+// sidecar auto-detects the native and XDG data locations.
+message LutrisSource {}
 
 message ScanEvent {
   oneof event {

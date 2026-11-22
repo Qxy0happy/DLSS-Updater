@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dlss_updater/src/data/daemon_api.dart';
 import 'package:dlss_updater/src/data/daemon_connection.dart';
+import 'package:dlss_updater/src/data/launcher_detection.dart';
 import 'package:dlss_updater/src/data/ui_settings.dart';
 import 'package:dlss_updater/src/theme.dart';
 import 'package:dlss_updater/src/ui/games/games_view.dart';
@@ -29,16 +30,21 @@ class FakeSettingsStore implements SettingsStore {
 }
 
 class GamesHarness {
-  GamesHarness({UiSettings initial = const UiSettings(steamRoot: '/steam')}) {
+  GamesHarness({
+    UiSettings initial = const UiSettings(steamRoot: '/steam'),
+    FakeLauncherDetector? detector,
+  }) {
     api = FakeDaemonApi();
     store = FakeSettingsStore();
     picker = FakeDirectoryPicker();
     connection = FakeDaemonConnection();
+    this.detector = detector ?? FakeLauncherDetector();
     settings = SettingsViewModel(
       store: store,
       picker: picker,
       connection: connection,
       dataDir: '/tmp/dlss-data',
+      detector: this.detector,
       initial: initial,
     );
   }
@@ -47,6 +53,7 @@ class GamesHarness {
   late final FakeSettingsStore store;
   late final FakeDirectoryPicker picker;
   late final FakeDaemonConnection connection;
+  late final FakeLauncherDetector detector;
   late final SettingsViewModel settings;
 
   Widget build() {
@@ -608,5 +615,122 @@ void main() {
     expect(harness.picker.calls, 1);
     expect(harness.store.saved.customFolders, ['/games/ZZZ', '/games/Other']);
     expect(find.byKey(GamesView.errorKey), findsNothing);
+  });
+
+  testWidgets('detected launchers default on and are scanned', (tester) async {
+    final detector = FakeLauncherDetector(
+      detection: const LauncherDetection(
+        heroicConfig: '/home/user/.config/heroic',
+        lutrisDatabase: '/home/user/.local/share/lutris/pga.db',
+      ),
+    );
+    final harness = GamesHarness(detector: detector);
+    addTearDown(harness.dispose);
+    harness.api.scanEvents = [started(), finished(games: 0, dlls: 0)];
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(detector.calls, 1);
+    expect(find.text('Heroic'), findsOneWidget);
+    expect(find.text('Lutris'), findsOneWidget);
+
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+    final sources = harness.api.startScanRequests.single.sources;
+    expect(sources, hasLength(3));
+    expect(sources[1].heroic, isNotNull);
+    expect(sources[2].lutris, isNotNull);
+  });
+
+  testWidgets('turning Heroic off persists and removes it from the request', (
+    tester,
+  ) async {
+    final harness = GamesHarness(
+      detector: FakeLauncherDetector(
+        detection: const LauncherDetection(heroicConfig: '/heroic'),
+      ),
+    );
+    addTearDown(harness.dispose);
+    harness.api.scanEvents = [started(), finished(games: 0, dlls: 0)];
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final chip = find.byKey(GamesView.heroicToggleKey);
+    expect(tester.widget<FilterChip>(chip).selected, isTrue);
+
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+    expect(harness.store.saved.heroicEnabled, isFalse);
+    expect(tester.widget<FilterChip>(chip).selected, isFalse);
+
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+    final sources = harness.api.startScanRequests.single.sources;
+    expect(sources, hasLength(1));
+    expect(sources.single.steam.root, '/steam');
+  });
+
+  testWidgets('a persisted launcher toggle wins over detection', (
+    tester,
+  ) async {
+    final harness = GamesHarness(
+      initial: const UiSettings(steamRoot: '/steam', heroicEnabled: false),
+      detector: FakeLauncherDetector(
+        detection: const LauncherDetection(heroicConfig: '/heroic'),
+      ),
+    );
+    addTearDown(harness.dispose);
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<FilterChip>(find.byKey(GamesView.heroicToggleKey)).selected,
+      isFalse,
+    );
+  });
+
+  testWidgets('undetected launchers are marked and stay off', (tester) async {
+    final harness = GamesHarness();
+    addTearDown(harness.dispose);
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(find.text('Heroic (not found)'), findsOneWidget);
+    expect(find.text('Lutris (not found)'), findsOneWidget);
+    final lutris = tester.widget<FilterChip>(
+      find.byKey(GamesView.lutrisToggleKey),
+    );
+    expect(lutris.selected, isFalse);
+    expect(lutris.onSelected, isNull);
+  });
+
+  testWidgets('a warning without a path shows its message as the title', (
+    tester,
+  ) async {
+    final harness = GamesHarness();
+    addTearDown(harness.dispose);
+    harness.api.scanEvents = [
+      started(),
+      ScanEvent(
+        warning: ScanWarning(
+          message: 'Heroic is not installed or its configuration is not accessible; it is skipped.',
+        ),
+      ),
+      finished(games: 0, dlls: 0),
+    ];
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 scan warning'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Heroic is not installed or its configuration is not accessible; it is skipped.',
+      ),
+      findsOneWidget,
+    );
   });
 }

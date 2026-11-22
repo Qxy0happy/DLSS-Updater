@@ -91,7 +91,7 @@ class StartScanRequest extends $pb.GeneratedMessage {
   $pb.PbList<ScanSource> get sources => $_getList(1);
 }
 
-enum ScanSource_Source { steam, customFolder, notSet }
+enum ScanSource_Source { steam, customFolder, heroic, lutris, notSet }
 
 /// ScanSource names one origin to enumerate. Each variant carries only the
 /// information that origin needs; the sidecar resolves libraries and prefixes
@@ -100,10 +100,14 @@ class ScanSource extends $pb.GeneratedMessage {
   factory ScanSource({
     SteamSource? steam,
     CustomFolderSource? customFolder,
+    HeroicSource? heroic,
+    LutrisSource? lutris,
   }) {
     final result = ScanSource._();
     if (steam != null) result.steam = steam;
     if (customFolder != null) result.customFolder = customFolder;
+    if (heroic != null) result.heroic = heroic;
+    if (lutris != null) result.lutris = lutris;
     return result;
   }
 
@@ -120,17 +124,23 @@ class ScanSource extends $pb.GeneratedMessage {
       {
     1: ScanSource_Source.steam,
     2: ScanSource_Source.customFolder,
+    3: ScanSource_Source.heroic,
+    4: ScanSource_Source.lutris,
     0: ScanSource_Source.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ScanSource',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'dlss.v1'),
       createEmptyInstance: ScanSource.$_createMessage)
-    ..oo(0, [1, 2])
+    ..oo(0, [1, 2, 3, 4])
     ..aOM<SteamSource>(1, _omitFieldNames ? '' : 'steam',
         subBuilder: SteamSource.$_createMessage)
     ..aOM<CustomFolderSource>(2, _omitFieldNames ? '' : 'customFolder',
         subBuilder: CustomFolderSource.$_createMessage)
+    ..aOM<HeroicSource>(3, _omitFieldNames ? '' : 'heroic',
+        subBuilder: HeroicSource.$_createMessage)
+    ..aOM<LutrisSource>(4, _omitFieldNames ? '' : 'lutris',
+        subBuilder: LutrisSource.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -155,9 +165,13 @@ class ScanSource extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
   ScanSource_Source whichSource() => _ScanSource_SourceByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
   @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
   void clearSource() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -181,6 +195,28 @@ class ScanSource extends $pb.GeneratedMessage {
   void clearCustomFolder() => $_clearField(2);
   @$pb.TagNumber(2)
   CustomFolderSource ensureCustomFolder() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  HeroicSource get heroic => $_getN(2);
+  @$pb.TagNumber(3)
+  set heroic(HeroicSource value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasHeroic() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearHeroic() => $_clearField(3);
+  @$pb.TagNumber(3)
+  HeroicSource ensureHeroic() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  LutrisSource get lutris => $_getN(3);
+  @$pb.TagNumber(4)
+  set lutris(LutrisSource value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasLutris() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLutris() => $_clearField(4);
+  @$pb.TagNumber(4)
+  LutrisSource ensureLutris() => $_ensure(3);
 }
 
 /// SteamSource scans one Steam installation root and every library listed in
@@ -301,6 +337,93 @@ class CustomFolderSource extends $pb.GeneratedMessage {
   $core.bool hasPath() => $_has(0);
   @$pb.TagNumber(1)
   void clearPath() => $_clearField(1);
+}
+
+/// HeroicSource scans the installed games recorded by Heroic Games Launcher.
+/// The sidecar auto-detects the native and Flatpak configuration roots; the
+/// source carries no path so the same request works inside a sandbox.
+class HeroicSource extends $pb.GeneratedMessage {
+  factory HeroicSource() => HeroicSource._();
+
+  HeroicSource._();
+
+  factory HeroicSource.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      HeroicSource()..mergeFromBuffer(data, registry);
+  factory HeroicSource.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      HeroicSource()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'HeroicSource',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'dlss.v1'),
+      createEmptyInstance: HeroicSource.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  HeroicSource clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  HeroicSource copyWith(void Function(HeroicSource) updates) =>
+      super.copyWith((message) => updates(message as HeroicSource))
+          as HeroicSource;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HeroicSource() / HeroicSource.new instead')
+  static HeroicSource create() => HeroicSource._();
+  static $pb.GeneratedMessage $_createMessage() => HeroicSource._();
+  @$core.override
+  HeroicSource createEmptyInstance() => HeroicSource._();
+  @$core.pragma('dart2js:noInline')
+  static HeroicSource getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<HeroicSource>(
+          HeroicSource.$_createMessage);
+  static HeroicSource? _defaultInstance;
+}
+
+/// LutrisSource scans the installed games recorded in Lutris's pga.db. The
+/// sidecar auto-detects the native and XDG data locations.
+class LutrisSource extends $pb.GeneratedMessage {
+  factory LutrisSource() => LutrisSource._();
+
+  LutrisSource._();
+
+  factory LutrisSource.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LutrisSource()..mergeFromBuffer(data, registry);
+  factory LutrisSource.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LutrisSource()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LutrisSource',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'dlss.v1'),
+      createEmptyInstance: LutrisSource.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LutrisSource clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LutrisSource copyWith(void Function(LutrisSource) updates) =>
+      super.copyWith((message) => updates(message as LutrisSource))
+          as LutrisSource;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use LutrisSource() / LutrisSource.new instead')
+  static LutrisSource create() => LutrisSource._();
+  static $pb.GeneratedMessage $_createMessage() => LutrisSource._();
+  @$core.override
+  LutrisSource createEmptyInstance() => LutrisSource._();
+  @$core.pragma('dart2js:noInline')
+  static LutrisSource getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<LutrisSource>(
+          LutrisSource.$_createMessage);
+  static LutrisSource? _defaultInstance;
 }
 
 enum ScanEvent_Event {

@@ -99,6 +99,8 @@ type ScanSource struct {
 	//
 	//	*ScanSource_Steam
 	//	*ScanSource_CustomFolder
+	//	*ScanSource_Heroic
+	//	*ScanSource_Lutris
 	Source        isScanSource_Source `protobuf_oneof:"source"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -159,6 +161,24 @@ func (x *ScanSource) GetCustomFolder() *CustomFolderSource {
 	return nil
 }
 
+func (x *ScanSource) GetHeroic() *HeroicSource {
+	if x != nil {
+		if x, ok := x.Source.(*ScanSource_Heroic); ok {
+			return x.Heroic
+		}
+	}
+	return nil
+}
+
+func (x *ScanSource) GetLutris() *LutrisSource {
+	if x != nil {
+		if x, ok := x.Source.(*ScanSource_Lutris); ok {
+			return x.Lutris
+		}
+	}
+	return nil
+}
+
 type isScanSource_Source interface {
 	isScanSource_Source()
 }
@@ -171,9 +191,21 @@ type ScanSource_CustomFolder struct {
 	CustomFolder *CustomFolderSource `protobuf:"bytes,2,opt,name=custom_folder,json=customFolder,proto3,oneof"`
 }
 
+type ScanSource_Heroic struct {
+	Heroic *HeroicSource `protobuf:"bytes,3,opt,name=heroic,proto3,oneof"`
+}
+
+type ScanSource_Lutris struct {
+	Lutris *LutrisSource `protobuf:"bytes,4,opt,name=lutris,proto3,oneof"`
+}
+
 func (*ScanSource_Steam) isScanSource_Source() {}
 
 func (*ScanSource_CustomFolder) isScanSource_Source() {}
+
+func (*ScanSource_Heroic) isScanSource_Source() {}
+
+func (*ScanSource_Lutris) isScanSource_Source() {}
 
 // SteamSource scans one Steam installation root and every library listed in
 // its steamapps/libraryfolders.vdf.
@@ -269,6 +301,83 @@ func (x *CustomFolderSource) GetPath() string {
 	return ""
 }
 
+// HeroicSource scans the installed games recorded by Heroic Games Launcher.
+// The sidecar auto-detects the native and Flatpak configuration roots; the
+// source carries no path so the same request works inside a sandbox.
+type HeroicSource struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HeroicSource) Reset() {
+	*x = HeroicSource{}
+	mi := &file_dlss_v1_scan_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeroicSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeroicSource) ProtoMessage() {}
+
+func (x *HeroicSource) ProtoReflect() protoreflect.Message {
+	mi := &file_dlss_v1_scan_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeroicSource.ProtoReflect.Descriptor instead.
+func (*HeroicSource) Descriptor() ([]byte, []int) {
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{4}
+}
+
+// LutrisSource scans the installed games recorded in Lutris's pga.db. The
+// sidecar auto-detects the native and XDG data locations.
+type LutrisSource struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LutrisSource) Reset() {
+	*x = LutrisSource{}
+	mi := &file_dlss_v1_scan_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LutrisSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LutrisSource) ProtoMessage() {}
+
+func (x *LutrisSource) ProtoReflect() protoreflect.Message {
+	mi := &file_dlss_v1_scan_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LutrisSource.ProtoReflect.Descriptor instead.
+func (*LutrisSource) Descriptor() ([]byte, []int) {
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{5}
+}
+
 type ScanEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Event:
@@ -286,7 +395,7 @@ type ScanEvent struct {
 
 func (x *ScanEvent) Reset() {
 	*x = ScanEvent{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[4]
+	mi := &file_dlss_v1_scan_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -298,7 +407,7 @@ func (x *ScanEvent) String() string {
 func (*ScanEvent) ProtoMessage() {}
 
 func (x *ScanEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[4]
+	mi := &file_dlss_v1_scan_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -311,7 +420,7 @@ func (x *ScanEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanEvent.ProtoReflect.Descriptor instead.
 func (*ScanEvent) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{4}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ScanEvent) GetEvent() isScanEvent_Event {
@@ -430,7 +539,7 @@ type ScanStarted struct {
 
 func (x *ScanStarted) Reset() {
 	*x = ScanStarted{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[5]
+	mi := &file_dlss_v1_scan_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -442,7 +551,7 @@ func (x *ScanStarted) String() string {
 func (*ScanStarted) ProtoMessage() {}
 
 func (x *ScanStarted) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[5]
+	mi := &file_dlss_v1_scan_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -455,7 +564,7 @@ func (x *ScanStarted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanStarted.ProtoReflect.Descriptor instead.
 func (*ScanStarted) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{5}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ScanStarted) GetSteamRoot() string {
@@ -493,7 +602,7 @@ type ScanLibraryProgress struct {
 
 func (x *ScanLibraryProgress) Reset() {
 	*x = ScanLibraryProgress{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[6]
+	mi := &file_dlss_v1_scan_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -505,7 +614,7 @@ func (x *ScanLibraryProgress) String() string {
 func (*ScanLibraryProgress) ProtoMessage() {}
 
 func (x *ScanLibraryProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[6]
+	mi := &file_dlss_v1_scan_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,7 +627,7 @@ func (x *ScanLibraryProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanLibraryProgress.ProtoReflect.Descriptor instead.
 func (*ScanLibraryProgress) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{6}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ScanLibraryProgress) GetLibraryPath() string {
@@ -574,7 +683,7 @@ type ScanWarning struct {
 
 func (x *ScanWarning) Reset() {
 	*x = ScanWarning{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[7]
+	mi := &file_dlss_v1_scan_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -586,7 +695,7 @@ func (x *ScanWarning) String() string {
 func (*ScanWarning) ProtoMessage() {}
 
 func (x *ScanWarning) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[7]
+	mi := &file_dlss_v1_scan_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -599,7 +708,7 @@ func (x *ScanWarning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanWarning.ProtoReflect.Descriptor instead.
 func (*ScanWarning) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{7}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ScanWarning) GetPath() string {
@@ -628,7 +737,7 @@ type ScanFinished struct {
 
 func (x *ScanFinished) Reset() {
 	*x = ScanFinished{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[8]
+	mi := &file_dlss_v1_scan_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -640,7 +749,7 @@ func (x *ScanFinished) String() string {
 func (*ScanFinished) ProtoMessage() {}
 
 func (x *ScanFinished) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[8]
+	mi := &file_dlss_v1_scan_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -653,7 +762,7 @@ func (x *ScanFinished) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanFinished.ProtoReflect.Descriptor instead.
 func (*ScanFinished) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{8}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ScanFinished) GetGameCount() int32 {
@@ -696,7 +805,7 @@ type ScanFailed struct {
 
 func (x *ScanFailed) Reset() {
 	*x = ScanFailed{}
-	mi := &file_dlss_v1_scan_proto_msgTypes[9]
+	mi := &file_dlss_v1_scan_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -708,7 +817,7 @@ func (x *ScanFailed) String() string {
 func (*ScanFailed) ProtoMessage() {}
 
 func (x *ScanFailed) ProtoReflect() protoreflect.Message {
-	mi := &file_dlss_v1_scan_proto_msgTypes[9]
+	mi := &file_dlss_v1_scan_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -721,7 +830,7 @@ func (x *ScanFailed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanFailed.ProtoReflect.Descriptor instead.
 func (*ScanFailed) Descriptor() ([]byte, []int) {
-	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{9}
+	return file_dlss_v1_scan_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ScanFailed) GetReason() string {
@@ -746,16 +855,20 @@ const file_dlss_v1_scan_proto_rawDesc = "" +
 	"\x10StartScanRequest\x12\x1d\n" +
 	"\n" +
 	"steam_root\x18\x01 \x01(\tR\tsteamRoot\x12-\n" +
-	"\asources\x18\x02 \x03(\v2\x13.dlss.v1.ScanSourceR\asources\"\x88\x01\n" +
+	"\asources\x18\x02 \x03(\v2\x13.dlss.v1.ScanSourceR\asources\"\xea\x01\n" +
 	"\n" +
 	"ScanSource\x12,\n" +
 	"\x05steam\x18\x01 \x01(\v2\x14.dlss.v1.SteamSourceH\x00R\x05steam\x12B\n" +
-	"\rcustom_folder\x18\x02 \x01(\v2\x1b.dlss.v1.CustomFolderSourceH\x00R\fcustomFolderB\b\n" +
+	"\rcustom_folder\x18\x02 \x01(\v2\x1b.dlss.v1.CustomFolderSourceH\x00R\fcustomFolder\x12/\n" +
+	"\x06heroic\x18\x03 \x01(\v2\x15.dlss.v1.HeroicSourceH\x00R\x06heroic\x12/\n" +
+	"\x06lutris\x18\x04 \x01(\v2\x15.dlss.v1.LutrisSourceH\x00R\x06lutrisB\b\n" +
 	"\x06source\"!\n" +
 	"\vSteamSource\x12\x12\n" +
 	"\x04root\x18\x01 \x01(\tR\x04root\"(\n" +
 	"\x12CustomFolderSource\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\xd7\x02\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"\x0e\n" +
+	"\fHeroicSource\"\x0e\n" +
+	"\fLutrisSource\"\xd7\x02\n" +
 	"\tScanEvent\x120\n" +
 	"\astarted\x18\x01 \x01(\v2\x14.dlss.v1.ScanStartedH\x00R\astarted\x12I\n" +
 	"\x10library_progress\x18\x02 \x01(\v2\x1c.dlss.v1.ScanLibraryProgressH\x00R\x0flibraryProgress\x12.\n" +
@@ -808,39 +921,43 @@ func file_dlss_v1_scan_proto_rawDescGZIP() []byte {
 	return file_dlss_v1_scan_proto_rawDescData
 }
 
-var file_dlss_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_dlss_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_dlss_v1_scan_proto_goTypes = []any{
 	(*StartScanRequest)(nil),      // 0: dlss.v1.StartScanRequest
 	(*ScanSource)(nil),            // 1: dlss.v1.ScanSource
 	(*SteamSource)(nil),           // 2: dlss.v1.SteamSource
 	(*CustomFolderSource)(nil),    // 3: dlss.v1.CustomFolderSource
-	(*ScanEvent)(nil),             // 4: dlss.v1.ScanEvent
-	(*ScanStarted)(nil),           // 5: dlss.v1.ScanStarted
-	(*ScanLibraryProgress)(nil),   // 6: dlss.v1.ScanLibraryProgress
-	(*ScanWarning)(nil),           // 7: dlss.v1.ScanWarning
-	(*ScanFinished)(nil),          // 8: dlss.v1.ScanFinished
-	(*ScanFailed)(nil),            // 9: dlss.v1.ScanFailed
-	(*Game)(nil),                  // 10: dlss.v1.Game
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(*HeroicSource)(nil),          // 4: dlss.v1.HeroicSource
+	(*LutrisSource)(nil),          // 5: dlss.v1.LutrisSource
+	(*ScanEvent)(nil),             // 6: dlss.v1.ScanEvent
+	(*ScanStarted)(nil),           // 7: dlss.v1.ScanStarted
+	(*ScanLibraryProgress)(nil),   // 8: dlss.v1.ScanLibraryProgress
+	(*ScanWarning)(nil),           // 9: dlss.v1.ScanWarning
+	(*ScanFinished)(nil),          // 10: dlss.v1.ScanFinished
+	(*ScanFailed)(nil),            // 11: dlss.v1.ScanFailed
+	(*Game)(nil),                  // 12: dlss.v1.Game
+	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
 }
 var file_dlss_v1_scan_proto_depIdxs = []int32{
 	1,  // 0: dlss.v1.StartScanRequest.sources:type_name -> dlss.v1.ScanSource
 	2,  // 1: dlss.v1.ScanSource.steam:type_name -> dlss.v1.SteamSource
 	3,  // 2: dlss.v1.ScanSource.custom_folder:type_name -> dlss.v1.CustomFolderSource
-	5,  // 3: dlss.v1.ScanEvent.started:type_name -> dlss.v1.ScanStarted
-	6,  // 4: dlss.v1.ScanEvent.library_progress:type_name -> dlss.v1.ScanLibraryProgress
-	10, // 5: dlss.v1.ScanEvent.game_found:type_name -> dlss.v1.Game
-	8,  // 6: dlss.v1.ScanEvent.finished:type_name -> dlss.v1.ScanFinished
-	9,  // 7: dlss.v1.ScanEvent.failed:type_name -> dlss.v1.ScanFailed
-	7,  // 8: dlss.v1.ScanEvent.warning:type_name -> dlss.v1.ScanWarning
-	11, // 9: dlss.v1.ScanStarted.started_at:type_name -> google.protobuf.Timestamp
-	0,  // 10: dlss.v1.Scan.StartScan:input_type -> dlss.v1.StartScanRequest
-	4,  // 11: dlss.v1.Scan.StartScan:output_type -> dlss.v1.ScanEvent
-	11, // [11:12] is the sub-list for method output_type
-	10, // [10:11] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	4,  // 3: dlss.v1.ScanSource.heroic:type_name -> dlss.v1.HeroicSource
+	5,  // 4: dlss.v1.ScanSource.lutris:type_name -> dlss.v1.LutrisSource
+	7,  // 5: dlss.v1.ScanEvent.started:type_name -> dlss.v1.ScanStarted
+	8,  // 6: dlss.v1.ScanEvent.library_progress:type_name -> dlss.v1.ScanLibraryProgress
+	12, // 7: dlss.v1.ScanEvent.game_found:type_name -> dlss.v1.Game
+	10, // 8: dlss.v1.ScanEvent.finished:type_name -> dlss.v1.ScanFinished
+	11, // 9: dlss.v1.ScanEvent.failed:type_name -> dlss.v1.ScanFailed
+	9,  // 10: dlss.v1.ScanEvent.warning:type_name -> dlss.v1.ScanWarning
+	13, // 11: dlss.v1.ScanStarted.started_at:type_name -> google.protobuf.Timestamp
+	0,  // 12: dlss.v1.Scan.StartScan:input_type -> dlss.v1.StartScanRequest
+	6,  // 13: dlss.v1.Scan.StartScan:output_type -> dlss.v1.ScanEvent
+	13, // [13:14] is the sub-list for method output_type
+	12, // [12:13] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_dlss_v1_scan_proto_init() }
@@ -852,8 +969,10 @@ func file_dlss_v1_scan_proto_init() {
 	file_dlss_v1_scan_proto_msgTypes[1].OneofWrappers = []any{
 		(*ScanSource_Steam)(nil),
 		(*ScanSource_CustomFolder)(nil),
+		(*ScanSource_Heroic)(nil),
+		(*ScanSource_Lutris)(nil),
 	}
-	file_dlss_v1_scan_proto_msgTypes[4].OneofWrappers = []any{
+	file_dlss_v1_scan_proto_msgTypes[6].OneofWrappers = []any{
 		(*ScanEvent_Started)(nil),
 		(*ScanEvent_LibraryProgress)(nil),
 		(*ScanEvent_GameFound)(nil),
@@ -867,7 +986,7 @@ func file_dlss_v1_scan_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dlss_v1_scan_proto_rawDesc), len(file_dlss_v1_scan_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

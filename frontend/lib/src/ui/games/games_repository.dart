@@ -53,6 +53,8 @@ class GamesRepository {
   ScanSession startScan({
     String? steamRoot,
     List<String> customFolders = const [],
+    bool scanHeroic = false,
+    bool scanLutris = false,
   }) {
     final sources = <ScanSource>[
       if (steamRoot != null && steamRoot.isNotEmpty)
@@ -60,6 +62,8 @@ class GamesRepository {
       for (final path in customFolders)
         if (path.isNotEmpty)
           ScanSource(customFolder: CustomFolderSource(path: path)),
+      if (scanHeroic) ScanSource(heroic: HeroicSource()),
+      if (scanLutris) ScanSource(lutris: LutrisSource()),
     ];
     final DaemonStream<ScanEvent> stream;
     try {

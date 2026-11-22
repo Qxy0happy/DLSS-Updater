@@ -58,6 +58,24 @@ const ScanSource$json = {
       '9': 0,
       '10': 'customFolder'
     },
+    {
+      '1': 'heroic',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.dlss.v1.HeroicSource',
+      '9': 0,
+      '10': 'heroic'
+    },
+    {
+      '1': 'lutris',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.dlss.v1.LutrisSource',
+      '9': 0,
+      '10': 'lutris'
+    },
   ],
   '8': [
     {'1': 'source'},
@@ -68,7 +86,9 @@ const ScanSource$json = {
 final $typed_data.Uint8List scanSourceDescriptor = $convert.base64Decode(
     'CgpTY2FuU291cmNlEiwKBXN0ZWFtGAEgASgLMhQuZGxzcy52MS5TdGVhbVNvdXJjZUgAUgVzdG'
     'VhbRJCCg1jdXN0b21fZm9sZGVyGAIgASgLMhsuZGxzcy52MS5DdXN0b21Gb2xkZXJTb3VyY2VI'
-    'AFIMY3VzdG9tRm9sZGVyQggKBnNvdXJjZQ==');
+    'AFIMY3VzdG9tRm9sZGVyEi8KBmhlcm9pYxgDIAEoCzIVLmRsc3MudjEuSGVyb2ljU291cmNlSA'
+    'BSBmhlcm9pYxIvCgZsdXRyaXMYBCABKAsyFS5kbHNzLnYxLkx1dHJpc1NvdXJjZUgAUgZsdXRy'
+    'aXNCCAoGc291cmNl');
 
 @$core.Deprecated('Use steamSourceDescriptor instead')
 const SteamSource$json = {
@@ -93,6 +113,24 @@ const CustomFolderSource$json = {
 /// Descriptor for `CustomFolderSource`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List customFolderSourceDescriptor = $convert
     .base64Decode('ChJDdXN0b21Gb2xkZXJTb3VyY2USEgoEcGF0aBgBIAEoCVIEcGF0aA==');
+
+@$core.Deprecated('Use heroicSourceDescriptor instead')
+const HeroicSource$json = {
+  '1': 'HeroicSource',
+};
+
+/// Descriptor for `HeroicSource`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List heroicSourceDescriptor =
+    $convert.base64Decode('CgxIZXJvaWNTb3VyY2U=');
+
+@$core.Deprecated('Use lutrisSourceDescriptor instead')
+const LutrisSource$json = {
+  '1': 'LutrisSource',
+};
+
+/// Descriptor for `LutrisSource`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List lutrisSourceDescriptor =
+    $convert.base64Decode('CgxMdXRyaXNTb3VyY2U=');
 
 @$core.Deprecated('Use scanEventDescriptor instead')
 const ScanEvent$json = {
