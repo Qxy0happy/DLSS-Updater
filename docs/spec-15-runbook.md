@@ -1,7 +1,8 @@
 # Spec #15 运行手册（Flutter 前端 + Go 边车）
 
 本手册覆盖首个端到端纵切片的开发、验收与手工演示路径。所有命令都从仓库根目录执行；
-Python/Flet 旧应用不在此工程的构建链内，也没有任何目标会读写它的数据目录。
+旧 Python/Flet 应用已从工作树移除，本工程只包含 Flutter 前端、Go 边车与 proto 契约；
+没有任何目标会读写旧应用的数据目录。
 
 ## 1. 前置工具链
 
@@ -42,7 +43,8 @@ Linux 桌面构建还需要 GTK 3 / clang / cmake / ninja / pkg-config（Flutter
 - 开发运行固定使用仓库内 `build/dev-data` 与 `build/dev-runtime`；`make run-dev`
   每次启动前删除并重建二者，因此不会继承上一次的选择或数据库。
 - **禁止**把 `--data-dir` 指向 `~/.config/DLSS-Updater`、`~/.local/share/DLSS-Updater`
-  或旧应用的任何数据库/备份；也禁止把扫描根指向真实 Steam 库做演示。
+  或旧应用留下的任何数据库/备份（旧应用已移除，但用户机器上的旧数据可能仍在）；
+  也禁止把扫描根指向真实 Steam 库做演示。
 - 测试只使用 `testing.T.TempDir()` 与短期临时 socket 目录，`TestMain`/`t.Cleanup`
   负责删除；运行结束后临时根之外不得出现 socket、lock、日志或临时文件。
 - 手工演示把仓库内的夹具复制到 `/tmp`，不要在原地修改 `fixtures/demo`。

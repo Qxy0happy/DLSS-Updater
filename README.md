@@ -1,432 +1,81 @@
-<div align="center">
+# DLSS Updater — Linux rewrite
 
-# DLSS Updater
+Linux desktop application for updating **DLSS / XeSS / FSR / Streamline** DLLs in
+installed Steam games, with automatic `.dlsss` backups and one-click restore.
 
-**Update every DLSS / XeSS / FSR DLL across all the games on your system — from one place.**
+This branch contains the Flutter + Go rewrite. The historical Python/Flet
+implementation has been removed from the working tree; it remains available in
+git history. The current scope is the first end-to-end vertical slice:
+controlled Steam library scanning, single-DLL updates from a local DLL source,
+backups, restore and delete, with real progress, cancellation and errors over a
+private Unix-domain gRPC contract.
 
-[![CodeQL](https://github.com/Recol/DLSS-Updater/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Recol/DLSS-Updater/actions?query=workflow%3ACodeQL)
-[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/Recol/DLSS-Updater?utm_source=badge)
-![Version](./version.svg)
-![Downloads](https://img.shields.io/github/downloads/Recol/DLSS-Updater/total?color=blue&label=Downloads)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow.svg)](https://buymeacoffee.com/decouk)
+## Architecture
 
-![Python](https://img.shields.io/badge/Python-3.14_free--threaded-3776AB?logo=python&logoColor=white)
-![Flet](https://img.shields.io/badge/UI-Flet-00C4B3)
-![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-555?logo=windows&logoColor=white)
-[![License](https://img.shields.io/badge/License-AGPL_v3-orange.svg)](LICENSE)
+| Layer | Technology | Responsibility |
+| --- | --- | --- |
+| Frontend | Flutter 3.50 / Dart 3.14, Material 3 | Games, Backups, Settings, connection state; owns the sidecar process |
+| Contract | `proto/dlss/v1` | Single source of truth for both stacks; generated code is committed |
+| Sidecar | Go 1.27, statically linked `dlssd` | Steam scanning, PE versions, atomic replacement, backups, SQLite |
+| Transport | gRPC over a private Unix socket | `$XDG_RUNTIME_DIR/dlss-updater/daemon-<pid>.sock`, mode `0600` |
 
-<a href="https://trendshift.io/repositories/11650?utm_source=repository-badge&utm_medium=badge&utm_campaign=badge-repository-11650" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/11650" alt="Recol%2FDLSS-Updater | Trendshift" width="250" height="55"/></a>&nbsp;<a href="https://trendshift.io/repositories/11650?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-11650" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/11650/daily?language=Python" alt="Recol%2FDLSS-Updater | Trendshift" width="250" height="55"/></a>
+The sidecar never guesses a user directory. The frontend always passes
+`--data-dir`, `--socket` and `--dll-source-dir` explicitly.
 
-![dlss_updater](https://github.com/user-attachments/assets/b7d7fb4d-e204-412d-8e92-61a7173abfaf)
+## Requirements
 
+- Linux with the usual Flutter desktop toolchain (GTK 3, clang, cmake, ninja,
+  pkg-config)
+- Go 1.27.x
+- Flutter 3.50.0 / Dart 3.14.0
+- `protoc` 36.1, `protoc-gen-go` 1.36.12, `protoc-gen-go-grpc` 1.6.2,
+  `protoc_plugin` 25.1.0
 
-</div>
+Exact versions and installation checks are in
+[`docs/spec-15-runbook.md`](docs/spec-15-runbook.md).
 
-> [!TIP]
-> **Quick start (Windows):** `winget install "DLSS Updater"` — then launch and hit scan.
-> Prefer Linux? Grab the [Flatpak](#linux). Full options are in [Installation](#installation).
+## Build and test
 
----
-
-## Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Bundled DLL Versions](#bundled-dll-versions)
-- [Installation](#installation)
-  - [Windows](#windows)
-  - [Linux](#linux)
-  - [Building from Source](#building-from-source)
-- [Blacklisted Games](#blacklisted-games)
-- [Anti-Cheat](#anti-cheat)
-- [Troubleshooting](#troubleshooting)
-- [Roadmap](#roadmap)
-- [License & Credits](#license--credits)
-
----
-
-## Overview
-
-DLSS Updater scans the games installed on your system, detects the upscaling and
-frame-generation DLLs they ship with, and replaces them with newer versions — with automatic backups so you can always roll back. It runs on **Windows and Linux** and
-understands games from every major launcher.
-
-<div align="center">
-<img width="1084" alt="DLSS Updater - Homepage" src="https://github.com/user-attachments/assets/489cefc9-cb4a-474c-9a36-15a45deb10c4" />
-
-</div>
-
-<div align="center">
-
-### ⭐ Star History
-
-<!-- star-history:start -->
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/star-history/star-history-dark.svg">
-  <img alt="Star history" src="assets/star-history/star-history-light.svg">
-</picture>
-<!-- star-history:end -->
-
-</div>
-
----
-
-## Features
-
-<table>
-  <tr>
-    <td width="33%" valign="top">
-      <h3>🖥️ Cross-Platform</h3>
-      Runs on <strong>Windows &amp; Linux</strong> and detects games from every major launcher — Steam, Epic, GOG, Ubisoft, EA, Battle.net &amp; Xbox.
-    </td>
-    <td width="33%" valign="top">
-      <h3>🔄 Updates Everything</h3>
-      DLSS, Neural Rendering, Ray Reconstruction, Frame Generation, Streamline, XeSS, FSR &amp; DirectStorage — all at once, only the technologies you pick, or one binary at a time.
-    </td>
-    <td width="33%" valign="top">
-      <h3>🎛️ DLSS Presets</h3>
-      Apply global or per-game SR / RR / FG preset overrides on Windows (NVIDIA), or per-title Proton launch options on Linux — DLSS SR/RR/FG overrides plus FSR&nbsp;4 &amp; XeSS DLL upgrades.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h3>🖼️ Smart Game Images</h3>
-      Optional Steam Web API matching for near-perfect banners, plus custom banner &amp; name overrides that survive rescans.
-    </td>
-    <td valign="top">
-      <h3>💾 Safe by Default</h3>
-      Every binary is backed up before it's touched — restore any DLL in one click from the <strong>Backups</strong> view.
-    </td>
-    <td valign="top">
-      <h3>🚫 Custom Blacklist</h3>
-      Skip (or force) any title with your own per-game blacklist, layered on top of the community list.
-    </td>
-  </tr>
-  <tr>
-    <td colspan="3" valign="top">
-      <h3>⬆️ Updates Itself</h3>
-      When a new release lands, the version badge beside the title becomes an update button. On <strong>Windows</strong> it downloads, verifies and installs the new version, then restarts itself. On <strong>Linux</strong> it downloads the Flatpak bundle — a sandboxed app can't install packages itself — though Flatpak users can simply take updates through <code>flatpak update</code> or their software centre instead.
-    </td>
-  </tr>
-</table>
-
-<details>
-<summary><h3>🖥️ Platform &amp; Launcher Support</h3></summary>
-
-Cross-platform on **Windows and Linux**, with detection for the launchers below:
-
-| Launcher | Windows | Linux | Notes |
-|---|:---:|:---:|---|
-| Steam | ✅ | ✅ | Includes Proton games on Linux |
-| Epic Games Launcher | ✅ | ✅ | |
-| GOG Galaxy | ✅ | ✅ | |
-| Ubisoft Connect | ✅ | ✅ | |
-| EA Play | ✅ | ✅ | |
-| Battle.net | ✅ | ✅ | Keep the launcher **open** before updating (not required for custom folders) |
-| Xbox Game Pass (PC) | ✅ | — | Windows only |
-| Custom folders | ✅ | ✅ | Point at any game location manually |
-
-**Linux specifics**
-
-- Scans Steam Proton prefixes (`~/.steam/steam/steamapps/compatdata/`)
-- Supports Wine prefixes (Lutris, standalone Wine)
-- Automatic Steam path detection
-- Enable the DLSS Debug Overlay
-
-</details>
-
-<details>
-<summary><h3>🔄 DLL Updating</h3></summary>
-
-- **DLSS** Super Resolution, plus **Ray Reconstruction**, **Frame Generation** and **Streamline** (Reflex Low Latency, DirectSR, NIS, etc.)
-- **DLSS 5 Neural Rendering** — runs alongside Super Resolution rather than replacing it (RTX 50 series only; the DLL is ~158&nbsp;MB, so expect a longer first download)
-- **XeSS / XeSS Frame Generation / XeLL**
-- **FSR** — Upscaling, Frame Generation, Ray Regeneration, plus an **FSR 4 upgrade** for DirectX 12 and Vulkan games that ship only FSR 3.1 (Radeon RX 6000 / RDNA 2 and newer; skipped on other GPUs, where FSR 4 cannot run)
-- **DirectStorage** (Windows only)
-- Update everything at once, or update individual binaries for a specific game
-- **Choose what "update everything" means** — the caret beside *Start Update* (and beside the Hub's *Update all*) opens a menu of technologies. Untick the ones you want left alone and the run skips them; the caret shows a count whenever the run is narrower than everything. The choice applies to **that run only** and then reverts to your saved preferences, so a one-off "only DLSS this time" never quietly becomes permanent — use *Make this my default* to write it to **Update Preferences** instead. Both menus share one scope, so narrowing on the Hub shows up on the Launchers bar and vice versa
-- **Update a hand-picked set** — hover any game card in the **Games** view to reveal its checkbox, tick the games you want, then hit *Update selected*. **Select all** takes every game visible in the current launcher tab, so "update just this launcher" is one click away. The selection carries across launcher tabs and filters, and the run reports one summary rather than a dialog per game
-
-</details>
-
-<details>
-<summary><h3>🎛️ DLSS Presets &amp; Proton Upscalers</h3></summary>
-
-- **Global presets (Windows, experimental)** — the *DLSS Settings* card on the home page applies preset overrides to every game via the NVIDIA driver base profile (the same mechanism as the NVIDIA App's global override). Shows the currently applied preset; takes effect at the next game launch.
-  - Super Resolution (SR): Default / Latest / Preset J / K / L / M
-  - Ray Reconstruction (RR): Default / Latest / Preset D (DLSS 4) / Preset F (DLSS 4.5 Gen 2)
-  - Frame Generation (FG): Default / Latest / Preset A / B
-  - ⚠️ Per-game overrides set in the NVIDIA App take priority — set its DLSS override to *Default/Off* to let this global setting apply.
-- **Per-game presets (Windows, NVIDIA only)** — the **DLSS Settings** action on any game (right-click a card, or its *⋮* menu) opens a per-game panel that overrides SR / RR / FG for just that title via its NVIDIA per-application driver profile — the same mechanism the NVIDIA App uses for per-game overrides. It takes priority over the global setting for that game and applies at the next launch. The action is hidden automatically on non-NVIDIA systems.
-  - The game's executable is detected automatically (NVIDIA driver lookup → folder heuristic → Steam manifest); when it can't be determined, a *Change executable* file picker lets you point at the correct `.exe`. Your executable and preset choices are remembered between sessions.
-  - The panel reads back the value the driver is actually applying and distinguishes NVIDIA's predefined value from your own override. *Reset to default* clears the override (reverting to the game's predefined value) in one click.
-- **Proton Upscalers (Linux only)** — the **Proton Upscalers** panel generates per-title Steam launch options (copy-to-clipboard; the same variables work in Heroic/Lutris environment settings):
-  - **DLSS (NVIDIA)** — SR presets (Latest / J / K / L / M) and RR presets (Latest / D / F) plus a Frame Generation override via DXVK-NVAPI, matching the Windows per-game dialog. Works on any Proton, including Valve's.
-  - **DLL upgrades (GE-Proton / Proton-CachyOS / Proton-EM)** — one-toggle `PROTON_DLSS_UPGRADE`, `PROTON_FSR4_UPGRADE` (RDNA3/RDNA4 aware) and `PROTON_XESS_UPGRADE` launch options with optional on-screen indicators. The panel reads each game's Proton build from Steam's compat-tool mapping and disables toggles that build doesn't support.
-  - GPU vendor is auto-detected (NVIDIA / AMD / Intel) to show the relevant sections, with RDNA3 mode recommended automatically on RX&nbsp;7000 GPUs.
-
-</details>
-
-<details>
-<summary><h3>🖼️ Game Images &amp; Custom Display</h3></summary>
-
-- **Steam Web API integration (optional)** — connect your free Steam API key for near-perfect game image matching.
-  - Auto-detects your Steam ID from the local installation
-  - Four-tier app ID resolution: Manifest → Steam API → Store Search → FTS5 fuzzy match
-  - One-click re-resolution to fix images from previous scans
-- **Custom display** — override any game's banner image and display name via the pencil icon on its card.
-  - Search the local Steam app list to find any game (no API key required; credentials improve results)
-  - Overrides are stored separately from scanner data, so a rescan can't revert them
-  - Reset to default at any time
-- **Card size** — the *⋮* menu in the **Games** header switches the grid between **Compact**, **Comfortable** and **Large**. Compact fits noticeably more of a large library on screen; the choice is remembered between sessions.
-
-</details>
-
-<details>
-<summary><h3>💾 Backups &amp; Safety</h3></summary>
-
-- Built-in backup system that snapshots game binaries before modifying them
-- Restore any modified DLL from the **Backups** view
-- Build your own per-game blacklist to skip titles for any reason
-
-</details>
-
----
-
-## Bundled DLL Versions
-
-| Technology | Included version |
-|---|---|
-| DLSS Super Resolution | 4.5 (`310.9.16.0`) |
-| DLSS FG / RR | 4.5 (`310.9.16.0`) |
-| DLSS 5 Neural Rendering *(RTX 50 series)* | `310.8.0.0` |
-| Streamline (Reflex, DLSS SR/FG/RR, DirectSR, NIS) | `2.14.16.0` |
-| FSR Upscaling (DX12 / Vulkan) | 4.1.2 (`4.1.2.4555`) |
-| FSR Frame Generation (DX12 / Vulkan) | 4.0.2 (`4.0.2.4555`) |
-| FSR Ray Regeneration | 1.2.1 (`1.2.1.4555`) |
-| FSR Loader | DX12 `2.3.0.4555`, Vulkan `1.0.2.4555` |
-| FSR Radiance Caching *(preview, opt-in)* | 0.9.0 (`0.9.0.4555`) |
-| FSR (DX12 / Vulkan, SDK 1.1.4) | `1.0.1.41314` |
-| XeSS (DX12 / DX11) | 2.0.2 (`2.0.2.68`) |
-| XeSS Frame Generation | 1.3.1 (`1.3.1.78`) |
-| XeLL | `1.3.2.10` |
-| DirectStorage *(Windows)* | 1.3 (`1.3.2506.2501`) |
-
-> See the [Intel XeSS releases](https://github.com/intel/xess/releases) for per-game XeSS support details.
-
----
-
-## Installation
-
-### Windows
-
-The **MSI installer** is the recommended way to install on Windows — it installs to
-Program Files with a proper Add/Remove Programs entry.
-
-**Winget** (recommended)
-```sh
-winget install "DLSS Updater"
+```bash
+make codegen-check        # regenerate both stacks and fail on a diff
+make backend-test         # Go unit tests
+make backend-integration  # real dlssd process over a real Unix socket
+make frontend-test        # dart format, flutter analyze, flutter test
+make build                # backend/bin/dlssd + Linux release bundle
 ```
 
-**Chocolatey** — install from the [Chocolatey package page](https://community.chocolatey.org/packages/dlss-updater/).
+`make run-dev` clears and recreates `build/dev-data` and `build/dev-runtime`,
+starts the Flutter app, and lets the app launch the sidecar with those paths.
+It never reads the user's real data or Steam library. Stop it with `Ctrl+C` or
+by closing the window; the frontend shuts the sidecar down and cleans the socket.
 
-**Scoop** — via the [scoop-games](https://github.com/Calinou/scoop-games) bucket (manifest update [pending merge](https://github.com/Calinou/scoop-games/pull/1770)). Scoop extracts the MSI into a portable install, so nothing touches Program Files:
-```sh
-scoop bucket add games
-scoop install dlss-updater
-```
-
-**Direct download** — grab `DLSS.Updater.X.Y.Z.msi` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page and run it.
-
-**Updating**
-
-From 4.6.0 onwards the app updates itself. When a release is available the version badge
-beside the title becomes an update button; clicking it downloads the installer, verifies it
-against the SHA-256 digest GitHub publishes, installs it and restarts. Both the launch check
-and automatic downloading are configurable under **UI Preferences → Application Updates**.
-
-If you installed through a package manager you can keep using it instead — `winget upgrade`
-or `choco upgrade dlss-updater`. One exception: **Scoop** installs are portable, so let Scoop
-update them (`scoop update dlss-updater`). The in-app updater runs the MSI, which installs to
-Program Files and would leave you with two copies.
-
-### Linux
-
-The **Flatpak** is the recommended way to install on Linux.
-
-<details>
-<summary><strong>Install Flatpak (if you don't have it)</strong></summary>
-
-```sh
-# Ubuntu/Debian
-sudo apt install flatpak
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-# Fedora — pre-installed
-
-# Arch
-sudo pacman -S flatpak
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-```
-</details>
-
-**Install DLSS Updater**
-```sh
-# Download DLSS_Updater-X.Y.Z.flatpak from the Releases page, then:
-flatpak install --user DLSS_Updater-X.Y.Z.flatpak
-flatpak run io.github.recol.dlss-updater
-```
-
-**Updating**
-
-Bundles from 4.6.0 onwards register an update remote when you install them, so
-later releases arrive through your software centre or:
-```sh
-flatpak update --user io.github.recol.dlss-updater
-```
-
-If you installed an earlier bundle, add the remote once to get updates from then on:
-```sh
-flatpak remote-add --user --if-not-exists \
-    dlss-updater https://recol.github.io/dlss-updater-flatpak/dlss-updater.flatpakrepo
-```
-
-The repository is GPG signed, and both routes above set up verification for you — updates
-that aren't signed with the key below are refused. Nothing to configure; the key travels
-inside the bundle and in the `.flatpakrepo`. To check it yourself:
+## Repository layout
 
 ```
-4AD3 8790 6BC2 7C4B 8BFC  B2D4 A613 C3A8 B1F1 B430
+backend/    Go sidecar, generated gRPC code, integration tests
+frontend/   Flutter app, generated gRPC code, widget tests
+proto/      dlss.v1 contract
+fixtures/   synthetic PE and Steam-library fixtures (no real game files)
+tools/      code generation entry point
+docs/       runbook and engineering notes
 ```
 
-**Uninstall**
-```sh
-flatpak uninstall io.github.recol.dlss-updater
-```
+## Data isolation
 
-<details>
-<summary><strong>Custom game directories</strong></summary>
+- Development runs use repository-local `build/dev-*` directories only.
+- Tests use `testing.T.TempDir()` and short-lived runtime directories.
+- The app never reads `~/.config/DLSS-Updater` or the legacy application's
+  database/backups.
+- The daemon holds a `flock` on its data directory, so two writers cannot share
+  one database.
 
-The Flatpak has read-only access to common game locations by default: `~/`, `/mnt/`,
-`/media/`, and `/run/media/`.
+## Documentation
 
-To grant access to additional directories:
-```sh
-flatpak override --user --filesystem=/path/to/games io.github.recol.dlss-updater
-```
+- [`docs/spec-15-runbook.md`](docs/spec-15-runbook.md) — toolchain, make targets,
+  fixture flow (scan → update → restore → delete), isolation rules, opt-in
+  Flutter integration test and known gaps.
+- [`proto/dlss/v1`](proto/dlss/v1) — the wire contract and stable error reasons.
 
-Or use [Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) for a graphical
-permissions manager.
-</details>
+## License
 
-<details>
-<summary><strong>Linux notes</strong></summary>
-
-- **Steam Proton games:** auto-detected at `~/.steam/steam/steamapps/compatdata/`.
-- **Wine games:** scans `~/.wine/` and Lutris games at `~/Games/`.
-- **Custom paths:** use `flatpak override` or the in-app dialog to grant access outside the sandbox.
-- **Windows-only features:** DLSS Debug Overlay and DirectStorage updates are disabled on Linux (grayed out with tooltips).
-- **Logs:** stored at `~/.local/share/dlss-updater/dlss_updater.log`.
-- **libmpv issue:** if you hit a libmpv error, your distro likely doesn't bundle the library — see [issue #125](https://github.com/Recol/DLSS-Updater/issues/125) for guidance.
-</details>
-
-### Building from Source
-
-<details>
-<summary><strong>Prerequisites & build steps</strong></summary>
-
-**Prerequisites**
-- Python 3.14 or higher (free-threaded build recommended)
-- Git
-- [uv](https://github.com/astral-sh/uv) (Python package installer)
-
-**Windows**
-```sh
-git clone https://github.com/Recol/DLSS-Updater.git
-cd DLSS-Updater
-uv sync --frozen
-
-# Build the executable
-uv run pyinstaller DLSS_Updater.spec
-
-# …or build the MSI installer
-pwsh build_msi.ps1
-
-# Run it
-.\dist\DLSS_Updater.exe
-```
-
-**Linux**
-```sh
-git clone https://github.com/Recol/DLSS-Updater.git
-cd DLSS-Updater
-uv sync --frozen
-
-# Build the executable…
-uv run pyinstaller DLSS_Updater_Linux.spec
-# …or build the Flatpak
-./build_flatpak.sh
-
-# Run it
-./dist/DLSS_Updater
-```
-</details>
-
----
-
-## Blacklisted Games
-
-The list of unsupported (blacklisted) games is maintained as a CSV in a separate
-repository, so it can be updated independently of the application:
-
-➡️ [**DLSS-Updater-Blacklist**](https://github.com/Recol/DLSS-Updater-Whitelist/blob/main/whitelist.csv)
-
-Games are blacklisted when they:
-
-- Use their own version of DLSS for testing (e.g., 3DMark)
-- Replace the DLL on launch (e.g., Warframe)
-- Ship a DLSS version below 2.0 (non-updatable)
-- Have known compatibility issues with updated DLSS versions
-
-You can override the blacklist via the **Manage Blacklist** button in the GUI to skip
-(or force) games for any reason.
-
----
-
-## Anti-Cheat
-
-The tool does not globally block anti-cheat games, since some allow DLL replacement.
-Individual titles will be blacklisted as they're reported not to function.
-
----
-
-## Troubleshooting
-
-Check the [Issues](https://github.com/Recol/DLSS-Updater/issues) section to see if your
-problem has already been reported. If not, open a new issue with as much detail as
-possible. Each release also ships detailed notes in `release_notes.txt` and on the
-[Releases](https://github.com/Recol/DLSS-Updater/releases) page.
-
----
-
-## Roadmap
-
-- Publishing on [Flathub](https://flathub.org) so Linux users can install straight from their software center ([#234](https://github.com/Recol/DLSS-Updater/issues/234)) — groundwork shipped in 4.3.1
-- Automation support with external software
-- Community-requested features — [open an issue](https://github.com/Recol/DLSS-Updater/issues) to suggest one
-
----
-
-## License & Credits
-
-Licensed under the **GNU Affero General Public License**. See the [LICENSE](LICENSE) file
-for details.
-
-This project uses NVIDIA's **DLSS** (Deep Learning Super Sampling) — see NVIDIA's
-[DLSS page](https://www.nvidia.com/en-us/geforce/technologies/dlss/) for more — and
-Intel's **XeSS** (Xe Super Sampling) — see Intel's
-[XeSS page](https://www.intel.com/content/www/us/en/content-details/726651/intel-xe-super-sampling-xess-an-ai-based-upscaling-for-real-time-rendering.html?wapkw=xess).
-
-Special thanks to all contributors of the open-source libraries used here, including but
-not limited to pefile, psutil, PyInstaller and packaging. If any are uncredited and
-should be, please let the author know and credit will be applied.
+AGPL-3.0. See [LICENSE](LICENSE).
