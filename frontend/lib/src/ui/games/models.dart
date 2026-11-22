@@ -87,12 +87,14 @@ class GameSummary {
   int get dllCount => dlls.length;
 }
 
-/// Counters and current location of a running scan.
+/// Counters and current location of a running scan. `sourceIndex` counts
+/// ScanSources (a Steam source counts once for all its libraries); `path` is
+/// the Steam library or custom folder currently being traversed.
 class ScanProgress {
   const ScanProgress({
-    this.libraryPath = '',
-    this.libraryIndex = 0,
-    this.libraryCount = 0,
+    this.path = '',
+    this.sourceIndex = 0,
+    this.sourceCount = 0,
     this.currentGame = '',
     this.gamesFound = 0,
     this.dllsFound = 0,
@@ -100,28 +102,30 @@ class ScanProgress {
 
   factory ScanProgress.fromProto(ScanLibraryProgress progress) {
     return ScanProgress(
-      libraryPath: progress.libraryPath,
-      libraryIndex: progress.libraryIndex,
-      libraryCount: progress.libraryCount,
+      path: progress.libraryPath,
+      sourceIndex: progress.libraryIndex,
+      sourceCount: progress.libraryCount,
       currentGame: progress.currentGame,
       gamesFound: progress.gamesFound,
       dllsFound: progress.dllsFound,
     );
   }
 
-  final String libraryPath;
-  final int libraryIndex;
-  final int libraryCount;
+  /// The Steam library or custom folder currently being traversed. Several
+  /// libraries of one Steam source share a single source index.
+  final String path;
+  final int sourceIndex;
+  final int sourceCount;
   final String currentGame;
   final int gamesFound;
   final int dllsFound;
 
-  /// Fraction of the scan that is done, or null while the library count is
+  /// Fraction of the scan that is done, or null while the source count is
   /// still unknown.
   double? get fraction {
-    if (libraryCount <= 0) return null;
-    final done = (libraryIndex - 1).clamp(0, libraryCount);
-    return done / libraryCount;
+    if (sourceCount <= 0) return null;
+    final done = (sourceIndex - 1).clamp(0, sourceCount);
+    return done / sourceCount;
   }
 }
 
@@ -149,7 +153,9 @@ class ScanSummary {
   final int durationMs;
 }
 
-/// A non-fatal scan problem (unreadable or vanished directory).
+/// A non-fatal scan problem. The scan continued; this is not necessarily a
+/// read failure (it can also be an unsupported source, an overlap or a folder
+/// without known DLLs).
 class ScanWarningInfo {
   const ScanWarningInfo({required this.path, required this.message});
 
@@ -214,13 +220,13 @@ enum GamesFailureKind {
   internal,
   daemonUnavailable,
   streamInterrupted,
-  noSteamRoot,
+  noSources,
   settingsUnavailable,
   unknown,
 }
 
 /// What the retry button of an error does.
-enum GamesRetryAction { scan, reload, chooseRoot, retryDaemon }
+enum GamesRetryAction { scan, reload, chooseRoot, chooseSource, retryDaemon }
 
 /// A user-facing failure with an actionable English message.
 ///
@@ -243,6 +249,7 @@ class GamesFailure {
     GamesRetryAction.scan => 'Scan again',
     GamesRetryAction.reload => 'Try again',
     GamesRetryAction.chooseRoot => 'Choose folder',
+    GamesRetryAction.chooseSource => 'Choose folder',
     GamesRetryAction.retryDaemon => 'Retry',
   };
 }
@@ -313,9 +320,9 @@ GamesFailure failureFromReason(
     case 'SCAN_ROOT_INVALID':
       return make(
         GamesFailureKind.scanRootInvalid,
-        'That Steam folder cannot be read. Choose a folder that contains a '
-        'steamapps directory.',
-        GamesRetryAction.chooseRoot,
+        'One or more scan folders cannot be read. Choose a folder that exists '
+        'and is readable.',
+        GamesRetryAction.chooseSource,
       );
     case 'SCAN_IN_PROGRESS':
       return make(
@@ -326,7 +333,7 @@ GamesFailure failureFromReason(
     case 'PERMISSION_DENIED':
       return make(
         GamesFailureKind.permissionDenied,
-        'Part of the Steam folder could not be read. Check the folder '
+        'Part of the selected folder could not be read. Check the folder '
         'permissions and try again.',
         _retryFor(request),
       );
@@ -366,16 +373,17 @@ const GamesFailure streamInterruptedFailure = GamesFailure(
   retry: GamesRetryAction.scan,
 );
 
-const GamesFailure noSteamRootFailure = GamesFailure(
-  kind: GamesFailureKind.noSteamRoot,
-  message: 'Choose your Steam folder before scanning.',
+const GamesFailure noSourcesFailure = GamesFailure(
+  kind: GamesFailureKind.noSources,
+  message:
+      'Choose your Steam folder or add a custom game folder before scanning.',
   retry: GamesRetryAction.chooseRoot,
 );
 
 const GamesFailure settingsFailure = GamesFailure(
   kind: GamesFailureKind.settingsUnavailable,
-  message: 'The Steam folder could not be saved. Choose it again.',
-  retry: GamesRetryAction.chooseRoot,
+  message: 'The scan sources could not be saved. Try again.',
+  retry: GamesRetryAction.chooseSource,
 );
 
 GamesRetryAction _retryFor(GamesRequestKind request) {

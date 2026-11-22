@@ -1,4 +1,4 @@
-// Scan service: enumerate one Steam root and stream progress.
+// Scan service: enumerate the requested sources and stream progress.
 //
 // Cancellation: the client cancels the stream; there is no CancelScan method.
 // The server maps context cancellation to CANCELLED, keeps the results it has

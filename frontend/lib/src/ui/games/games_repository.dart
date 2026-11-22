@@ -50,10 +50,20 @@ class GamesRepository {
     }
   }
 
-  ScanSession startScan(String steamRoot) {
+  ScanSession startScan({
+    String? steamRoot,
+    List<String> customFolders = const [],
+  }) {
+    final sources = <ScanSource>[
+      if (steamRoot != null && steamRoot.isNotEmpty)
+        ScanSource(steam: SteamSource(root: steamRoot)),
+      for (final path in customFolders)
+        if (path.isNotEmpty)
+          ScanSource(customFolder: CustomFolderSource(path: path)),
+    ];
     final DaemonStream<ScanEvent> stream;
     try {
-      stream = _api.startScan(StartScanRequest(steamRoot: steamRoot));
+      stream = _api.startScan(StartScanRequest(sources: sources));
     } catch (error) {
       throw GamesException(
         failureFromError(error, request: GamesRequestKind.scan),

@@ -3,7 +3,6 @@ package scan
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -51,8 +50,8 @@ func NewServer(st *store.Store, state RunState, logger *slog.Logger) *Server {
 	}
 }
 
-// StartScan streams one scan of req.SteamRoot. A second concurrent call fails
-// with SCAN_IN_PROGRESS before any event is sent.
+// StartScan streams one scan of the requested sources. A second concurrent
+// call fails with SCAN_IN_PROGRESS before any event is sent.
 func (s *Server) StartScan(req *dlssv1.StartScanRequest, stream dlssv1.Scan_StartScanServer) error {
 	if !s.running.CompareAndSwap(false, true) {
 		return contract.Detail{
@@ -69,24 +68,37 @@ func (s *Server) StartScan(req *dlssv1.StartScanRequest, stream dlssv1.Scan_Star
 		s.state.SetScanRunning(false)
 	}()
 
-	root := strings.TrimSpace(req.GetSteamRoot())
-	libraries, warnings, err := discoverLibraries(root)
-	if err != nil {
-		logger.ErrorContext(ctx, "scan root rejected", "steam_root", root, "error", err)
-		message := "The selected Steam root does not exist or cannot be read."
+	sources := sourcesFromRequest(req)
+	if len(sources) == 0 {
+		message := "Choose a Steam folder or add a custom game folder before scanning."
+		logger.ErrorContext(ctx, "scan rejected: no sources")
 		_ = stream.Send(&dlssv1.ScanEvent{Event: &dlssv1.ScanEvent_Failed{
 			Failed: &dlssv1.ScanFailed{Reason: string(contract.ReasonScanRootInvalid), Message: message},
 		}})
-		return contract.Detail{Reason: contract.ReasonScanRootInvalid, Path: root}.Err(message)
+		return contract.Detail{Reason: contract.ReasonScanRootInvalid}.Err(message)
 	}
-	logger.InfoContext(ctx, "scan started", "steam_root", root, "libraries", len(libraries))
+
+	plan, err := buildScanPlan(ctx, sources)
+	if err != nil {
+		logger.ErrorContext(ctx, "scan sources rejected", "sources", len(sources), "error", err)
+		path := ""
+		if len(plan.Warnings) > 0 {
+			path = plan.Warnings[0].Path
+		}
+		message := "None of the selected scan sources can be read. Choose a folder that exists and is readable."
+		_ = stream.Send(&dlssv1.ScanEvent{Event: &dlssv1.ScanEvent_Failed{
+			Failed: &dlssv1.ScanFailed{Reason: string(contract.ReasonScanRootInvalid), Message: message},
+		}})
+		return contract.Detail{Reason: contract.ReasonScanRootInvalid, Path: path}.Err(message)
+	}
+	logger.InfoContext(ctx, "scan started", "sources", len(sources), "units", len(plan.Units))
 
 	if err := stream.Send(&dlssv1.ScanEvent{Event: &dlssv1.ScanEvent_Started{
-		Started: &dlssv1.ScanStarted{SteamRoot: root, StartedAt: timestamppb.New(startedAt)},
+		Started: &dlssv1.ScanStarted{SteamRoot: plan.SteamRoot, StartedAt: timestamppb.New(startedAt)},
 	}}); err != nil {
 		return streams.Error(ctx, "The scan stream could not be written.")
 	}
-	for _, w := range warnings {
+	for _, w := range plan.Warnings {
 		if err := sendWarning(stream, w); err != nil {
 			return streams.Error(ctx, "The scan stream could not be written.")
 		}
@@ -98,49 +110,43 @@ func (s *Server) StartScan(req *dlssv1.StartScanRequest, stream dlssv1.Scan_Star
 		seenGames  = realPathSet{}
 		seenDLLs   = realPathSet{}
 	)
-	// One progress event per library/game is more detail than a UI can use;
-	// the emitter keeps the first event immediate, coalesces the rest by time
-	// and drops exact duplicates, and is flushed before the summary.
+	// One progress event per source/game is more detail than a UI can use; the
+	// emitter keeps the first event immediate, coalesces the rest by time and
+	// drops exact duplicates, and is flushed before the summary.
 	progress := newProgressEmitter(func(p *dlssv1.ScanLibraryProgress) error {
 		return stream.Send(&dlssv1.ScanEvent{Event: &dlssv1.ScanEvent_LibraryProgress{LibraryProgress: p}})
 	}, s.now)
-	report := func(lib library, index, count int, currentGame string) error {
+	report := func(unit scanUnit, currentGame string) error {
 		return progress.send(&dlssv1.ScanLibraryProgress{
-			LibraryPath:  lib.Root,
-			LibraryIndex: int32(index),
-			LibraryCount: int32(count),
+			LibraryPath:  unit.Path,
+			LibraryIndex: int32(unit.SourceIndex),
+			LibraryCount: int32(unit.SourceCount),
 			CurrentGame:  currentGame,
 			GamesFound:   gamesFound,
 			DllsFound:    dllsFound,
 		})
 	}
 
-	for i, lib := range libraries {
+	for _, unit := range plan.Units {
 		if ctx.Err() != nil {
 			return s.finishCancelled(ctx, stream, progress, startedAt, gamesFound, dllsFound)
 		}
-		if err := report(lib, i+1, len(libraries), ""); err != nil {
+		if err := report(unit, ""); err != nil {
 			return streams.Error(ctx, "The scan stream could not be written.")
 		}
 
-		libraryGames, libraryWarnings := enumerateGames(ctx, lib)
-		for _, w := range libraryWarnings {
-			if err := sendWarning(stream, w); err != nil {
-				return streams.Error(ctx, "The scan stream could not be written.")
-			}
-		}
-		for _, g := range libraryGames {
+		for _, g := range unit.Games {
 			if ctx.Err() != nil {
 				return s.finishCancelled(ctx, stream, progress, startedAt, gamesFound, dllsFound)
 			}
 			if !seenGames.add(g.InstallPath) {
 				continue
 			}
-			if err := report(lib, i+1, len(libraries), g.Name); err != nil {
+			if err := report(unit, g.Name); err != nil {
 				return streams.Error(ctx, "The scan stream could not be written.")
 			}
 
-			files, fileWarnings, err := findDLLs(ctx, g.InstallPath, seenDLLs)
+			files, fileWarnings, err := findDLLs(ctx, g.InstallPath, seenDLLs, plan.Protected)
 			for _, w := range fileWarnings {
 				if sendErr := sendWarning(stream, w); sendErr != nil {
 					return streams.Error(ctx, "The scan stream could not be written.")
@@ -161,6 +167,14 @@ func (s *Server) StartScan(req *dlssv1.StartScanRequest, stream dlssv1.Scan_Star
 			}
 			if ctx.Err() != nil {
 				return s.finishCancelled(ctx, stream, progress, startedAt, gamesFound, dllsFound)
+			}
+			if len(files) == 0 && unit.Kind == sourceCustomFolder {
+				if warnErr := sendWarning(stream, warning{
+					Path:    g.InstallPath,
+					Message: "No known technology DLLs were found in this folder.",
+				}); warnErr != nil {
+					return streams.Error(ctx, "The scan stream could not be written.")
+				}
 			}
 
 			gameTime := s.now()
@@ -204,7 +218,7 @@ func (s *Server) StartScan(req *dlssv1.StartScanRequest, stream dlssv1.Scan_Star
 			}}); err != nil {
 				return streams.Error(ctx, "The scan stream could not be written.")
 			}
-			if err := report(lib, i+1, len(libraries), ""); err != nil {
+			if err := report(unit, ""); err != nil {
 				return streams.Error(ctx, "The scan stream could not be written.")
 			}
 		}

@@ -23,11 +23,12 @@ void main() {
     expect(settings.dllSourceDir, isNull);
   });
 
-  test('round-trips the Steam root and DLL source', () async {
+  test('round-trips the Steam root, DLL source and custom folders', () async {
     await store.save(
       const UiSettings(
         steamRoot: '/steam/library',
         dllSourceDir: '/dll/source',
+        customFolders: ['/games/ZZZ', '/games/Other'],
       ),
     );
 
@@ -35,10 +36,38 @@ void main() {
         jsonDecode(store.file.readAsStringSync()) as Map<String, dynamic>;
     expect(raw['steam_root'], '/steam/library');
     expect(raw['dll_source_dir'], '/dll/source');
+    expect(raw['custom_folders'], ['/games/ZZZ', '/games/Other']);
 
     final loaded = await store.load();
     expect(loaded.steamRoot, '/steam/library');
     expect(loaded.dllSourceDir, '/dll/source');
+    expect(loaded.customFolders, ['/games/ZZZ', '/games/Other']);
+  });
+
+  test('clearing the Steam root keeps custom folders', () async {
+    const initial = UiSettings(
+      steamRoot: '/steam/library',
+      customFolders: ['/games/ZZZ'],
+    );
+    await store.save(initial);
+
+    await store.save(initial.copyWith(clearSteamRoot: true));
+
+    final loaded = await store.load();
+    expect(loaded.steamRoot, isNull);
+    expect(loaded.customFolders, ['/games/ZZZ']);
+  });
+
+  test('malformed custom folders are dropped', () async {
+    store.file.writeAsStringSync(
+      jsonEncode(<String, Object?>{
+        'custom_folders': ['/games/ZZZ', '  ', 42, '/games/ZZZ', ''],
+      }),
+    );
+
+    final loaded = await store.load();
+
+    expect(loaded.customFolders, ['/games/ZZZ']);
   });
 
   test('changing the DLL source preserves the Steam root', () async {

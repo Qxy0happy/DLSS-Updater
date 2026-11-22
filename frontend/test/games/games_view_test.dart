@@ -87,8 +87,8 @@ Game gameWith({
 ScanEvent started() => ScanEvent(started: ScanStarted(steamRoot: '/steam'));
 
 ScanEvent progress({
-  int libraryIndex = 1,
-  int libraryCount = 2,
+  int sourceIndex = 1,
+  int sourceCount = 2,
   String currentGame = 'Fixture Game',
   int gamesFound = 1,
   int dllsFound = 3,
@@ -96,8 +96,8 @@ ScanEvent progress({
   return ScanEvent(
     libraryProgress: ScanLibraryProgress(
       libraryPath: '/steam',
-      libraryIndex: libraryIndex,
-      libraryCount: libraryCount,
+      libraryIndex: sourceIndex,
+      libraryCount: sourceCount,
       currentGame: currentGame,
       gamesFound: gamesFound,
       dllsFound: dllsFound,
@@ -160,14 +160,16 @@ void main() {
     await tester.pump();
 
     expect(harness.api.startScanRequests, hasLength(1));
-    expect(harness.api.startScanRequests.single.steamRoot, '/steam');
+    final request = harness.api.startScanRequests.single;
+    expect(request.sources, hasLength(1));
+    expect(request.sources.single.steam.root, '/steam');
 
     controller.add(started());
     controller.add(progress());
     await tester.pump();
 
     expect(find.byKey(GamesView.progressKey), findsOneWidget);
-    expect(find.text('Library 1 of 2'), findsOneWidget);
+    expect(find.text('Source 1 of 2'), findsOneWidget);
     expect(find.text('Checking Fixture Game'), findsOneWidget);
     expect(find.text('1 game · 3 DLLs found'), findsOneWidget);
     expect(find.byKey(GamesView.cancelKey), findsOneWidget);
@@ -220,13 +222,13 @@ void main() {
   const errorCases = [
     _ErrorCase(
       'SCAN_ROOT_INVALID',
-      'That Steam folder cannot be read',
+      'One or more scan folders cannot be read',
       'Choose folder',
     ),
     _ErrorCase('SCAN_IN_PROGRESS', 'A scan is already running', 'Scan again'),
     _ErrorCase(
       'PERMISSION_DENIED',
-      'Part of the Steam folder could not be read',
+      'Part of the selected folder could not be read',
       'Scan again',
     ),
     _ErrorCase(
@@ -340,7 +342,7 @@ void main() {
 
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
-    expect(find.text('Not selected'), findsOneWidget);
+    expect(find.text('No sources selected'), findsOneWidget);
 
     await tester.tap(find.byKey(GamesView.chooseRootKey));
     await tester.pumpAndSettle();
@@ -350,7 +352,10 @@ void main() {
 
     await tester.tap(find.byKey(GamesView.scanKey));
     await tester.pumpAndSettle();
-    expect(harness.api.startScanRequests.single.steamRoot, '/home/user/Steam');
+    expect(
+      harness.api.startScanRequests.single.sources.single.steam.root,
+      '/home/user/Steam',
+    );
   });
 
   testWidgets('SCAN_ROOT_INVALID retry opens the folder picker', (
@@ -467,5 +472,141 @@ void main() {
     await tester.tap(checkbox);
     await tester.pump();
     expect(tester.widget<Checkbox>(checkbox).value, isTrue);
+  });
+
+  testWidgets('adds a custom folder and scans it without Steam', (
+    tester,
+  ) async {
+    final harness = GamesHarness(initial: const UiSettings());
+    addTearDown(harness.dispose);
+    harness.picker.queuedPaths.add('/games/ZZZ');
+    harness.api.scanEvents = [started(), finished(games: 0, dlls: 16)];
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(find.text('No sources selected'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(GamesView.scanKey)).onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(GamesView.addCustomFolderKey));
+    await tester.pumpAndSettle();
+    expect(harness.store.saved.customFolders, ['/games/ZZZ']);
+    expect(find.text('/games/ZZZ'), findsOneWidget);
+
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+    final request = harness.api.startScanRequests.single;
+    expect(request.sources, hasLength(1));
+    expect(request.sources.single.customFolder.path, '/games/ZZZ');
+  });
+
+  testWidgets('removes a custom folder from the scan sources', (tester) async {
+    final harness = GamesHarness(
+      initial: const UiSettings(customFolders: ['/games/ZZZ', '/games/Other']),
+    );
+    addTearDown(harness.dispose);
+    harness.api.scanEvents = [started(), finished(games: 0, dlls: 0)];
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(find.text('/games/ZZZ'), findsOneWidget);
+
+    await tester.tap(find.byKey(GamesView.removeCustomFolderKey('/games/ZZZ')));
+    await tester.pumpAndSettle();
+    expect(harness.store.saved.customFolders, ['/games/Other']);
+    expect(find.text('/games/ZZZ'), findsNothing);
+
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+    final sources = harness.api.startScanRequests.single.sources;
+    expect(sources, hasLength(1));
+    expect(sources.single.customFolder.path, '/games/Other');
+  });
+
+  testWidgets('warnings stay visible after the scan finishes', (tester) async {
+    final harness = GamesHarness();
+    addTearDown(harness.dispose);
+    harness.api.scanEvents = [
+      started(),
+      progress(),
+      ScanEvent(
+        warning: ScanWarning(
+          path: '/gone',
+          message:
+              'This custom folder is missing or unreadable; it is skipped.',
+        ),
+      ),
+      finished(games: 0, dlls: 0),
+    ];
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(GamesView.warningsKey), findsOneWidget);
+    expect(find.text('1 scan warning'), findsOneWidget);
+    expect(find.text('/gone'), findsNothing);
+
+    await tester.tap(find.text('1 scan warning'));
+    await tester.pumpAndSettle();
+    expect(find.text('/gone'), findsOneWidget);
+    expect(
+      find.text('This custom folder is missing or unreadable; it is skipped.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('clearing Steam keeps custom folders scannable', (tester) async {
+    final harness = GamesHarness(
+      initial: const UiSettings(
+        steamRoot: '/steam',
+        customFolders: ['/games/ZZZ'],
+      ),
+    );
+    addTearDown(harness.dispose);
+    harness.api.scanEvents = [started(), finished(games: 0, dlls: 0)];
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(GamesView.clearRootKey));
+    await tester.pumpAndSettle();
+
+    expect(harness.store.saved.steamRoot, isNull);
+    expect(find.text('1 custom folder'), findsOneWidget);
+
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+    final sources = harness.api.startScanRequests.single.sources;
+    expect(sources, hasLength(1));
+    expect(sources.single.customFolder.path, '/games/ZZZ');
+  });
+
+  testWidgets('SCAN_ROOT_INVALID retry picks a custom folder when only custom '
+      'sources exist', (tester) async {
+    final harness = GamesHarness(
+      initial: const UiSettings(customFolders: ['/games/ZZZ']),
+    );
+    addTearDown(harness.dispose);
+    harness.api.startScanError = grpcErrorForReason(
+      'SCAN_ROOT_INVALID',
+      message: '/games/ZZZ is not readable',
+    );
+
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(GamesView.scanKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(GamesView.errorKey), findsOneWidget);
+
+    harness.picker.queuedPaths.add('/games/Other');
+    await tester.tap(find.byKey(GamesView.retryKey));
+    await tester.pumpAndSettle();
+
+    expect(harness.picker.calls, 1);
+    expect(harness.store.saved.customFolders, ['/games/ZZZ', '/games/Other']);
+    expect(find.byKey(GamesView.errorKey), findsNothing);
   });
 }

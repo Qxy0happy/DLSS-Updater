@@ -47,18 +47,20 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Game is one Steam library entry discovered from an appmanifest.
+// Game is one installed game discovered by a scan.
 type Game struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Stable identifier assigned by the sidecar store.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Steam app id from the appmanifest; 0 when the manifest did not carry one.
+	// Steam app id from the appmanifest; 0 for custom folders and other sources.
 	AppId uint32 `protobuf:"varint,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	// Display name from the appmanifest.
+	// Display name: the appmanifest name for Steam, the launcher title when one
+	// exists, otherwise the game directory basename.
 	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	// Absolute path of the installed game directory.
 	InstallPath string `protobuf:"bytes,4,opt,name=install_path,json=installPath,proto3" json:"install_path,omitempty"`
-	// Absolute path of the owning Steam library root.
+	// Absolute path of the owning scan source (Steam library root or custom
+	// game folder).
 	LibraryPath string `protobuf:"bytes,5,opt,name=library_path,json=libraryPath,proto3" json:"library_path,omitempty"`
 	// Known technology DLLs found inside the game directory.
 	Dlls          []*GameDLL `protobuf:"bytes,6,rep,name=dlls,proto3" json:"dlls,omitempty"`

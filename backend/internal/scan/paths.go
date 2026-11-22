@@ -29,3 +29,9 @@ func (s realPathSet) add(path string) bool {
 	s[key] = struct{}{}
 	return true
 }
+
+// has reports whether path's real form is already recorded.
+func (s realPathSet) has(path string) bool {
+	_, ok := s[realPath(path)]
+	return ok
+}

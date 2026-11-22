@@ -19,7 +19,7 @@ import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart'
 
 export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
-/// Game is one Steam library entry discovered from an appmanifest.
+/// Game is one installed game discovered by a scan.
 class Game extends $pb.GeneratedMessage {
   factory Game({
     $core.String? id,
@@ -91,7 +91,7 @@ class Game extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearId() => $_clearField(1);
 
-  /// Steam app id from the appmanifest; 0 when the manifest did not carry one.
+  /// Steam app id from the appmanifest; 0 for custom folders and other sources.
   @$pb.TagNumber(2)
   $core.int get appId => $_getIZ(1);
   @$pb.TagNumber(2)
@@ -101,7 +101,8 @@ class Game extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearAppId() => $_clearField(2);
 
-  /// Display name from the appmanifest.
+  /// Display name: the appmanifest name for Steam, the launcher title when one
+  /// exists, otherwise the game directory basename.
   @$pb.TagNumber(3)
   $core.String get name => $_getSZ(2);
   @$pb.TagNumber(3)
@@ -121,7 +122,8 @@ class Game extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   void clearInstallPath() => $_clearField(4);
 
-  /// Absolute path of the owning Steam library root.
+  /// Absolute path of the owning scan source (Steam library root or custom
+  /// game folder).
   @$pb.TagNumber(5)
   $core.String get libraryPath => $_getSZ(4);
   @$pb.TagNumber(5)
